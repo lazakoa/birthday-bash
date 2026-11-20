@@ -1,4 +1,5 @@
 import { circleHitsWall } from './grid.js';
+import { sameSide } from './entity.js';
 
 function normalize(x, y) {
   const length = Math.hypot(x, y);
@@ -100,7 +101,7 @@ export class ProjectileSystem {
 
       for (const entity of entities) {
         if (!entity.alive) continue;
-        if (entity.faction === projectile.faction) continue;
+        if (sameSide(entity.faction, projectile.faction)) continue;
         if (entity.id === projectile.ownerId) continue;
         if (projectile.hitIds.has(entity.id)) continue;
         const reach = projectile.radius + (entity.radius ?? 0);

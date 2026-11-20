@@ -1,6 +1,8 @@
 import { COMBAT } from '../config.js';
 import { worldToScreen } from '../gfx/iso.js';
 
+const MAX_FLOATS = 64;
+
 export class Hud {
   constructor(elements) {
     this.elements = elements;
@@ -65,6 +67,10 @@ export class Hud {
     element.style.color = color;
     this.elements.combatLayer.appendChild(element);
     this.floats.push({ x, y, ttl: COMBAT.floatingTextDuration, maxTtl: COMBAT.floatingTextDuration, element });
+    while (this.floats.length > MAX_FLOATS) {
+      const oldest = this.floats.shift();
+      oldest.element.remove();
+    }
   }
 
   addLog(message, color = '#dfe6ff') {

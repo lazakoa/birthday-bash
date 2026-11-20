@@ -1,4 +1,5 @@
 import { ABILITIES, ABILITY_HOTKEYS, BASIC_ATTACK, COMBAT } from '../config.js';
+import { sameSide } from './entity.js';
 
 export const BASIC_ATTACK_ID = BASIC_ATTACK.id;
 
@@ -82,7 +83,7 @@ export function validateAbilityCast({ caster, ability, target = null, point = nu
   }
 
   if (ability.target === 'enemy') {
-    if (!target || !target.alive || target.faction === caster.faction) {
+    if (!target || !target.alive || sameSide(target.faction, caster.faction)) {
       return { ok: false, reason: 'target' };
     }
     if (!abilityInRange(caster, target, ability)) return { ok: false, reason: 'range' };

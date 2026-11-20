@@ -4,6 +4,20 @@ export function resetEntityIds() {
   nextEntityId = 1;
 }
 
+const PLAYER_SIDE = new Set(['player', 'ally']);
+
+export function sideOf(faction) {
+  return PLAYER_SIDE.has(faction) ? 'player' : faction;
+}
+
+export function sameSide(a, b) {
+  return sideOf(a) === sideOf(b);
+}
+
+export function isHostile(a, b) {
+  return !sameSide(a, b);
+}
+
 export class Entity {
   constructor({
     name = 'Entity',
@@ -29,6 +43,7 @@ export class Entity {
     this.mana = maxMana;
     this.healthRegen = 0;
     this.manaRegen = 0;
+    this.slowMultiplier = 1;
     this.alive = true;
     this.deathCount = 0;
     this.sprite = sprite;
@@ -145,7 +160,7 @@ export class EntityStore {
 
   enemiesOf(entity) {
     if (!entity) return [];
-    return this.items.filter((other) => other.alive && other.faction !== entity.faction);
+    return this.items.filter((other) => other.alive && isHostile(other.faction, entity.faction));
   }
 
   nearest(x, y, { faction = null, maxDistance = Infinity } = {}) {

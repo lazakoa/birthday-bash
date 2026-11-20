@@ -152,7 +152,7 @@ export class Enemy extends Entity {
     }
     this.damageFilter =
       filters.length > 0 ? (amount) => filters.reduce((remaining, filter) => filter(remaining), amount) : null;
-    this.moveSpeedMultiplier = speedMultiplier;
+    this.moveSpeedMultiplier = speedMultiplier * (this.slowMultiplier ?? 1);
     this.attackSpeedMultiplier = attackSpeedMultiplier;
   }
 }

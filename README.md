@@ -269,7 +269,7 @@ selector with the same reward for testing.
   chances, additive stacking with independent timers, effect retention across floors, the boss
   placeholder and the one-level-per-skipped-floor starting experience.
 
-## Phase 9: Lich boss and victory condition (current build)
+## Phase 9: Lich boss and victory condition
 
 - Floor 5 now spawns the Lich in the boss arena. The Lich is a durable spellcaster with Fireball,
   Summon, Arcane Push, Arcane Pull and a frontal area-of-effect Slash.
@@ -298,6 +298,58 @@ selector with the same reward for testing.
   completes only when the living player reaches the exit.
 - `npm test` covers the Lich spawn, ability set, summon count and composition, recast rules and
   replacement, collision-aware push/pull, frontal slash targeting and the exit-after-death flow.
+
+## Phase 10: integration, balance and release hardening (current build)
+
+- Automated integration checks drive both classes through all five floors, kill the Lich and reach
+  the exit, and also cover simultaneous deaths, repeated restarts, every floor transition and large
+  summon counts.
+- Team-aware targeting: player spells, projectiles, chains and explosions no longer damage allied
+  golems and totems, while enemy area damage still hits the player and their summons.
+- Slows and enemy buffs now compose correctly. Mana Shield no longer clears Ice Spear's slow, and
+  removing a buff or letting a slow expire restores the correct movement speed.
+- Removing an enemy or summon clears its timed effects. Repeated runs leave no stale entities,
+  projectiles, areas, pickups, effects or cooldowns behind.
+- Rendering culls off-screen shrines, areas, projectiles, pickups, enemies and combat visuals, and
+  pathfinding reuses per-grid scratch buffers so repathing does not allocate full maps. The debug HUD
+  reports sprite-buffer overflow.
+- Combat float text is capped so very large fights cannot grow the DOM without bound.
+- Setup, controls, configuration, tests, provisional balance values and known limitations are
+  documented below.
+
+### Phase 10 verification
+
+- Both classes complete a full five-floor run, defeat the Lich and escape; a simultaneous death on
+  the exit tile still counts as a failed run.
+- Both complete ability kits cast through the shared runtime in the same build, and passives never
+  occupy a hotkey.
+- Player damage never lands on allied summons, while enemy damage does.
+- Slow stacking, buff removal and slow expiry keep the expected movement multiplier.
+- Eight consecutive restarts, every floor transition and dozens of simultaneous summons leave the
+  entity, effect, cooldown, projectile, area and pickup collections clean.
+- `npm test` covers the full-run flow, both kits, friendly-fire rules, slow/buff composition, stale
+  state cleanup, restart and floor-transition cleanup, summon expiry, simultaneous deaths, render
+  culling, reused pathfinding buffers and balance guards for the early game and Lich fight.
+
+## Known limitations
+
+- Graphics are procedural placeholder sprites with no audio. The game targets single-player desktop
+  browsers and requires WebGL.
+- Rooms are rectangular BSP spaces connected by two-tile hallways; enemies use individual pathfinding
+  and do not coordinate their attacks.
+- Balance is provisional. Clearing every room grants enough experience to out-level the Lich, while
+  rushing the stairs makes the later floors much harder. Tune `POPULATION`, `ENEMY_TYPES`,
+  `ABILITIES` and `FORMULAS` in `src/config.js` for a different pacing.
+- Loot, chests, equipment, item affixes and persistent progression remain out of scope as specified.
+
+## Configuration and provisional balance
+
+Combat and progression tuning lives in `src/config.js`; presentation-only constants stay with the
+system that uses them. The main values are the experience curve (50 base, 9% growth), the five-floor
+dungeon layout, the 16%/12%/10% per-floor enemy health/damage/experience scaling, the 2.5% per-room
+shrine chance with 60-second bonuses, the 950-health Lich, and every ability's damage, cost, cooldown
+and range. Debug shortcuts (`R`, `Shift+R`, `S`, `H`, `M`, `T`) and the URL helpers stay available in
+the release build.
 
 ## Layout
 

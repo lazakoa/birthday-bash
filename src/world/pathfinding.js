@@ -55,6 +55,29 @@ class MinHeap {
     this.priorities[a] = this.priorities[b];
     this.priorities[b] = priority;
   }
+
+  clear() {
+    this.indices.length = 0;
+    this.priorities.length = 0;
+  }
+}
+
+const scratchByGrid = new WeakMap();
+
+function pathScratch(grid) {
+  const size = grid.width * grid.height;
+  let scratch = scratchByGrid.get(grid);
+  if (!scratch || scratch.size !== size) {
+    scratch = {
+      size,
+      gScore: new Float64Array(size),
+      cameFrom: new Int32Array(size),
+      closed: new Uint8Array(size),
+      open: new MinHeap(),
+    };
+    scratchByGrid.set(grid, scratch);
+  }
+  return scratch;
 }
 
 export function floodDistances(grid, sx, sy) {
@@ -104,12 +127,12 @@ export function findPath(grid, startX, startY, goalX, goalY) {
 
   const width = grid.width;
   const height = grid.height;
-  const size = width * height;
 
-  const gScore = new Float64Array(size).fill(Infinity);
-  const cameFrom = new Int32Array(size).fill(-1);
-  const closed = new Uint8Array(size);
-  const open = new MinHeap();
+  const { gScore, cameFrom, closed, open } = pathScratch(grid);
+  gScore.fill(Infinity);
+  cameFrom.fill(-1);
+  closed.fill(0);
+  open.clear();
 
   const startIndex = sy * width + sx;
   const goalIndex = gy * width + gx;

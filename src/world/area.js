@@ -1,3 +1,5 @@
+import { sameSide } from './entity.js';
+
 export function entitiesInRadius(entities, x, y, radius, predicate = null) {
   const matches = [];
   for (const entity of entities) {
@@ -22,7 +24,7 @@ export function applyDamageInRadius({
   const hits = [];
   const targets = entitiesInRadius(entities, x, y, radius, (entity) => {
     if (ownerId != null && entity.id === ownerId) return false;
-    if (faction != null && entity.faction === faction) return false;
+    if (faction != null && sameSide(entity.faction, faction)) return false;
     return predicate ? predicate(entity) : true;
   });
 

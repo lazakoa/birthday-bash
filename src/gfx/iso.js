@@ -47,6 +47,21 @@ export function screenToTile(sx, sy, camera, viewWidth, viewHeight) {
   return worldToTile(world.x, world.y);
 }
 
+export function visibleWorldBounds(camera, viewWidth, viewHeight, margin = 0) {
+  const halfWidth = viewWidth / 2 + margin;
+  const halfHeight = viewHeight / 2 + margin;
+  return {
+    minX: camera.x - halfWidth,
+    maxX: camera.x + halfWidth,
+    minY: camera.y - halfHeight,
+    maxY: camera.y + halfHeight,
+  };
+}
+
+export function isWorldPointVisible(x, y, bounds) {
+  return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+}
+
 export const TILE_CORNERS = [
   { x: 0, y: -HALF_H },
   { x: HALF_W, y: 0 },

@@ -15,7 +15,13 @@ import { Input } from './input.js';
 import { createGL } from '../gfx/gl.js';
 import { SpriteRenderer } from '../gfx/renderer.js';
 import { buildAtlasCanvas } from '../gfx/atlas.js';
-import { screenToTile, screenToWorld, tileToWorld } from '../gfx/iso.js';
+import {
+  screenToTile,
+  screenToWorld,
+  tileToWorld,
+  visibleWorldBounds,
+  isWorldPointVisible,
+} from '../gfx/iso.js';
 import { createCamera, followCamera as followCameraStep } from '../gfx/camera.js';
 import { generateFloor, TOTAL_FLOORS } from '../world/floor.js';
 import { findPath, nearestWalkableTile, smoothPath } from '../world/pathfinding.js';
@@ -369,6 +375,15 @@ export class Game {
   clearTimedEffects() {
     for (const effect of [...this.effects.items]) effect.onExpire?.(effect);
     this.effects.clear();
+  }
+
+  removeEntity(entity) {
+    if (!entity) return false;
+    this.effects?.removeFor?.(entity);
+    this.entities.remove(entity);
+    if (this.lich === entity) this.lich = null;
+    if (this.attackTargetId === entity.id) this.clearTarget();
+    return true;
   }
 
   attachLifecycle() {
@@ -741,7 +756,7 @@ export class Game {
     this.hud.addFloat(center.x, center.y - 30, `-${Math.max(1, Math.round(applied))}`, killed ? '#ffe08a' : color);
 
     if (killed && target.faction === 'enemy') this.onEnemyKilled(target);
-    else if (killed && target.kind === 'summon') this.entities.remove(target);
+    else if (killed && target.kind === 'summon') this.removeEntity(target);
     return { applied, killed };
   }
 
@@ -769,8 +784,7 @@ export class Game {
 
     this.maybeDropBlood(target);
     if (target.isBoss) this.onBossDefeated(target);
-    this.entities.remove(target);
-    if (this.attackTargetId === target.id) this.clearTarget();
+    this.removeEntity(target);
   }
 
   maybeDropBlood(target) {
@@ -984,7 +998,7 @@ export class Game {
         this.hud.addFloat(this.playerWorld?.x ?? 0, (this.playerWorld?.y ?? 0) - 44, 'pulled', '#c8b6ff');
       },
       log: (message, color) => this.hud.addLog(message, color),
-      remove: (entity) => this.entities.remove(entity),
+      remove: (entity) => this.removeEntity(entity),
       add: (entity) => this.entities.add(entity),
     };
     const context = {
@@ -1000,8 +1014,7 @@ export class Game {
     for (const enemy of [...this.entities.items]) {
       if (enemy.kind !== 'enemy') continue;
       if (!enemy.alive) {
-        this.entities.remove(enemy);
-        if (this.attackTargetId === enemy.id) this.clearTarget();
+        this.removeEntity(enemy);
         continue;
       }
       if (enemy.isLich) updateLich(enemy, dt, context);
@@ -1027,7 +1040,7 @@ export class Game {
       this.hud.addLog(`${enemy.name} hits ${targetName} for ${Math.max(1, Math.round(result.damage))}.`, '#ffb0b0');
     }
     if (!target.alive && target.kind === 'summon') {
-      this.entities.remove(target);
+      this.removeEntity(target);
       this.hud.addLog(`${target.name} crumbles.`, '#9fb0d0');
     }
   }
@@ -1048,7 +1061,7 @@ export class Game {
       if (!outcome.removed) continue;
       const center = tileToWorld(summon.x, summon.y);
       this.hud.addFloat(center.x, center.y - 30, outcome.reason === 'dead' ? 'crumbles' : 'fades', '#9fb0d0');
-      this.entities.remove(summon);
+      this.removeEntity(summon);
     }
   }
 
@@ -1193,7 +1206,7 @@ export class Game {
     this.player.clearPath();
     this.clearTarget();
     this.character.resetSelection();
-    for (const summon of this.entities.byFaction('ally')) this.entities.remove(summon);
+    for (const summon of this.entities.byFaction('ally')) this.removeEntity(summon);
     this.projectiles.clear();
     this.areas.clear();
     this.pickups.clear();
@@ -1302,6 +1315,7 @@ export class Game {
     }
 
     const bounds = this.visibleTileBounds();
+    const worldBounds = visibleWorldBounds(this.camera, this.view.cssWidth, this.view.cssHeight, 72);
     for (let ty = bounds.minY; ty <= bounds.maxY; ty++) {
       for (let tx = bounds.minX; tx <= bounds.maxX; tx++) {
         const center = tileToWorld(tx + 0.5, ty + 0.5);
@@ -1317,6 +1331,7 @@ export class Game {
 
     for (const shrine of this.floor.shrines ?? []) {
       const center = tileToWorld(shrine.x, shrine.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const bob = Math.sin(performance.now() / 320 + shrine.id) * 2;
       renderer.draw('shadow', center.x, center.y, { scale: 0.45 });
       renderer.draw(shrine.sprite, center.x, center.y + bob);
@@ -1365,6 +1380,7 @@ export class Game {
 
     for (const area of this.areas.effects) {
       const center = tileToWorld(area.x, area.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const life = area.duration > 0 ? Math.max(0, Math.min(1, area.remaining / area.duration)) : 1;
       renderer.draw('highlight', center.x, center.y, {
         scale: area.radius,
@@ -1378,12 +1394,14 @@ export class Game {
 
     for (const projectile of this.projectiles.projectiles) {
       const center = tileToWorld(projectile.x, projectile.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const color = ELEMENT_COLORS[projectile.element] ?? [1, 1, 1, 1];
       renderer.draw('spark', center.x, center.y - 14, { scale: 5, tint: color });
     }
 
     for (const pickup of this.pickups.items) {
       const center = tileToWorld(pickup.x, pickup.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const bob = Math.sin(performance.now() / 260 + pickup.id) * 2;
       renderer.draw('shadow', center.x, center.y, { scale: 0.35 });
       renderer.draw(pickup.sprite, center.x, center.y + bob, { tint: [1, 0.78, 0.88, 1] });
@@ -1401,6 +1419,7 @@ export class Game {
     for (const enemy of this.entities.items) {
       if (!enemy.alive || enemy.kind === 'pickup') continue;
       const center = tileToWorld(enemy.x, enemy.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       occluders.push({ y: center.y, kind: 'enemy', x: center.x, enemy, center });
     }
 
@@ -1470,6 +1489,7 @@ export class Game {
     for (const visual of this.visuals) {
       if (visual.type !== 'burst') continue;
       const center = tileToWorld(visual.x, visual.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const life = Math.max(0, visual.ttl / visual.maxTtl);
       const scale = visual.radius * (1.35 - 0.45 * life);
       renderer.draw('highlight', center.x, center.y, {
@@ -1487,6 +1507,10 @@ export class Game {
 
     for (const visual of this.visuals) {
       if (visual.type !== 'beam') continue;
+      const midX = (visual.from.x + visual.to.x) / 2;
+      const midY = (visual.from.y + visual.to.y) / 2;
+      const mid = tileToWorld(midX, midY);
+      if (!isWorldPointVisible(mid.x, mid.y, worldBounds)) continue;
       const life = Math.max(0, visual.ttl / visual.maxTtl);
       const segments = 8;
       for (let i = 0; i <= segments; i++) {
@@ -1504,6 +1528,7 @@ export class Game {
     for (const visual of this.visuals) {
       if (visual.type !== 'slash') continue;
       const center = tileToWorld(visual.x, visual.y);
+      if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
       const life = Math.max(0, visual.ttl / visual.maxTtl);
       renderer.draw('slash', center.x + visual.facing * 18, center.y - 22, {
         scale: 0.9 + visual.radius * 0.18,
@@ -1595,7 +1620,8 @@ export class Game {
 
     const enemies = this.entities.byFaction('enemy');
     this.debugElement.textContent = [
-      `fps ${this.fps.toFixed(0)}   sprites ${this.renderer.spriteCount}   dpr ${this.view.dpr}`,
+      `fps ${this.fps.toFixed(0)}   sprites ${this.renderer.spriteCount}   dpr ${this.view.dpr}` +
+        (this.renderer.overflowed ? `   overflow ${this.renderer.overflowed}` : ''),
       `canvas ${this.view.width}x${this.view.height} (css ${this.view.cssWidth}x${this.view.cssHeight})`,
       character
         ? `${character.className} lv${character.level} hp ${Math.ceil(character.health)}/${character.maxHealth} ` +

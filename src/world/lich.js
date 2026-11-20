@@ -1,5 +1,6 @@
 import { LICH } from '../config.js';
 import { abilityDamage, cooldownKey } from './abilities.js';
+import { sameSide } from './entity.js';
 import { Enemy, ENEMY_STATES } from './enemies.js';
 import { moveCircle } from './grid.js';
 import { hasLineOfSight } from './pathfinding.js';
@@ -191,7 +192,7 @@ export function slashCandidates(lich, entities = [], { grid = null, facing = nul
 
   for (const entity of entities) {
     if (!entity || entity === lich || !entity.alive) continue;
-    if (entity.faction === lich.faction) continue;
+    if (sameSide(entity.faction, lich.faction)) continue;
     const dx = entity.x - lich.x;
     const dy = entity.y - lich.y;
     const distance = Math.hypot(dx, dy);

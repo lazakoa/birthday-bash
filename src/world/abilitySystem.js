@@ -1,10 +1,19 @@
 import { rollSpellFumble } from './combat.js';
 import { abilityDamage, cooldownKey, validateAbilityCast } from './abilities.js';
 import { entitiesInRadius } from './area.js';
+import { sameSide } from './entity.js';
 import { moveCircle } from './grid.js';
 import { infuseSummon } from './summons.js';
 
 const MIN_STEP = 1e-6;
+
+function setSlowMultiplier(target, value) {
+  if (!target) return;
+  target.slowMultiplier = Math.max(0, Math.min(1, value));
+  if (typeof target.refreshBuffs === 'function') target.refreshBuffs();
+  else if (typeof target.recalculate === 'function') target.recalculate();
+  else target.moveSpeedMultiplier = target.slowMultiplier;
+}
 
 export class AbilitySystem {
   constructor({ projectiles, areas, effects, cooldowns }) {
@@ -62,7 +71,7 @@ export class AbilitySystem {
     const enemiesNear = (x, y, radius, extraFilter = null) =>
       entitiesInRadius(entities, x, y, radius, (entity) => {
         if (!entity.alive) return false;
-        if (entity.faction === caster.faction) return false;
+        if (sameSide(entity.faction, caster.faction)) return false;
         if (entity.id === caster.id) return false;
         return extraFilter ? extraFilter(entity) : true;
       });
@@ -361,7 +370,7 @@ export class AbilitySystem {
     const slowed = Math.max(0, Math.min(1, Number(percent) || 0));
     const seconds = Math.max(0, Number(duration) || 0);
     if (slowed === 0 || seconds === 0) return null;
-    target.moveSpeedMultiplier = Math.min(target.moveSpeedMultiplier ?? 1, 1 - slowed);
+    setSlowMultiplier(target, Math.min(target.slowMultiplier ?? 1, 1 - slowed));
     return this.effects.add({
       target,
       name: 'slow',
@@ -369,7 +378,10 @@ export class AbilitySystem {
       magnitude: slowed,
       onExpire: () => {
         const active = this.effects.activeFor(target, 'slow');
-        target.moveSpeedMultiplier = active.length > 0 ? 1 - Math.max(...active.map((effect) => effect.magnitude)) : 1;
+        setSlowMultiplier(
+          target,
+          active.length > 0 ? 1 - Math.max(...active.map((effect) => effect.magnitude)) : 1,
+        );
       },
     });
   }

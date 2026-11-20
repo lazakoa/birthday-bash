@@ -100,7 +100,10 @@ export class Character extends Player {
     this.buffSpeedMultiplier = bonuses.speedMultiplier;
     this.attackSpeedMultiplier = bonuses.attackSpeedMultiplier;
     this.speed =
-      (this.baseSpeed ?? PLAYER.speedTilesPerSecond) * bonuses.speedMultiplier * (1 + shrineSpeed);
+      (this.baseSpeed ?? PLAYER.speedTilesPerSecond) *
+      bonuses.speedMultiplier *
+      (1 + shrineSpeed) *
+      (this.slowMultiplier ?? 1);
 
     const filters = [];
     for (const buff of this.buffs.values()) {
