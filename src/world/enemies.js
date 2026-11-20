@@ -157,6 +157,25 @@ export class Enemy extends Entity {
   }
 }
 
+export class Lich extends Enemy {
+  constructor(x, y, { floor = 5 } = {}) {
+    super('lich', x, y, { floor });
+    this.isLich = true;
+    this.isBoss = true;
+    this.floorNumber = Math.max(1, Math.floor(floor));
+    this.minionIds = new Set();
+    this.summonedOnce = false;
+    this.slashTimer = 0;
+    this.slashFacing = 1;
+    this.lastAbility = null;
+    this.facing = 1;
+  }
+
+  get livingMinionIds() {
+    return [...this.minionIds];
+  }
+}
+
 function weightedType(rng, floorNumber) {
   const options = POPULATION.table.filter((entry) => (entry.minFloor ?? 1) <= floorNumber);
   if (options.length === 0) return POPULATION.table[0]?.id ?? 'skeleton';
@@ -243,6 +262,15 @@ export function spawnBossPlaceholder(floor) {
   return new Enemy('bossPlaceholder', spot.x, spot.y, {
     floor: floor.floorNumber ?? 1,
   });
+}
+
+export function spawnLich(floor) {
+  const spot =
+    floor?.bossSpawn ??
+    (floor?.rooms?.[0]
+      ? { x: floor.rooms[0].cx + 0.5, y: floor.rooms[0].cy + 0.5 }
+      : { x: 0.5, y: 0.5 });
+  return new Lich(spot.x, spot.y, { floor: floor?.floorNumber ?? 5 });
 }
 
 export function spawnTrainingDummies(floor, count = 3) {

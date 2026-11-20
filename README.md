@@ -235,7 +235,7 @@ selector with the same reward for testing.
 - `npm test` covers the complete Warrior kit, including stun expiry, rage removal, melee-only parry,
   slingshot range and damage, wall-respecting knockback, blood drops and blocked rushes.
 
-## Phase 8: shrines and complete run flow (current build)
+## Phase 8: shrines and complete run flow
 
 - The dungeon now has five floors: four BSP-generated 50-room floors followed by one unpartitioned
   boss arena. Staircases on floors 1–4 carry the same character forward, preserving stats, health,
@@ -247,12 +247,12 @@ selector with the same reward for testing.
 - The HUD status panel shows the floor out of five, the boss-floor marker and every active effect
   (shrine or buff) with its remaining duration. Shrine pickups also produce floating text and log
   lines.
-- Floor 5 contains a temporary placeholder boss. Killing it opens an exit in the arena; reaching the
-  exit alive completes the run. Death or victory allows a restart from class selection with a fresh
-  level-one character and a newly generated dungeon, with no persistent progression.
+- Floor 5 is a single arena. Phase 8 used a temporary boss placeholder; Phase 9 replaces it with the
+  Lich. Death at any point allows a restart from class selection with a fresh level-one character and
+  a newly generated dungeon, with no persistent progression.
 - The character-creation screen includes a Starting floor selector. Choosing a later floor grants one
   full level of experience per skipped floor, so tests can reach later floors with level-up points.
-- Shrines, the boss placeholder and the exit have placeholder sprite-art in the procedural atlas.
+- Shrines, the placeholder boss and the exit have placeholder sprite-art in the procedural atlas.
 
 ### Phase 8 verification
 
@@ -263,11 +263,41 @@ selector with the same reward for testing.
   walkable and clear of the spawn and staircase.
 - Shrine effects stack additively, expire on their own timers and survive floor transitions; they
   do not produce negative bonuses when an application expires.
-- The boss floor has no regular enemy population, only the placeholder boss. Its room is a single
-  open arena with a distant player spawn.
+- The boss floor has no regular enemy population. Its room is a single open arena with a distant
+  player spawn.
 - `npm test` covers the five-floor run, boss layout, deterministic shrine rolls, per-room shrine
   chances, additive stacking with independent timers, effect retention across floors, the boss
   placeholder and the one-level-per-skipped-floor starting experience.
+
+## Phase 9: Lich boss and victory condition (current build)
+
+- Floor 5 now spawns the Lich in the boss arena. The Lich is a durable spellcaster with Fireball,
+  Summon, Arcane Push, Arcane Pull and a frontal area-of-effect Slash.
+- Fireball is a ranged projectile that explodes in a small radius. Arcane Push hurls a close enemy
+  away, Arcane Pull drags a distant enemy closer, and Slash tears through a forward cone after a
+  short telegraph. Every ability has its own cooldown and obeys line of sight, range and wall
+  collision.
+- Summon raises eight minions drawn from every skeleton type and zombies. The summon cannot be spammed
+  and is recast only after its cooldown when fewer than three summoned minions remain; existing
+  summons crumble and are replaced by the new host.
+- Boss casts, summons, forced movement and the slash telegraph produce placeholder audiovisual
+  feedback in the combat log, floating text, beams, bursts and the slash sprite.
+- Killing the Lich opens the exit in the boss room but does not end the run and does not remove
+  surviving summons. The player must reach the exit alive to complete the run; dying after the Lich
+  falls still fails the run. Victory and death both offer a fresh restart from class selection.
+- Survivors keep attacking after the Lich dies, so the escape can be contested.
+
+### Phase 9 verification
+
+- The Lich uses every listed ability with valid targets, ranges, line of sight and cooldown behavior.
+- Summon creates eight minions with the configured skeleton/zombie mixture, grants experience for
+  killed minions like normal enemies, respects its recast threshold and replaces previous summons.
+- Push and Pull move only valid enemies and stop at walls; Slash hits only living enemies in the
+  forward cone within range.
+- The exit appears only after the Lich dies, surviving minions remain alive and dangerous, and the run
+  completes only when the living player reaches the exit.
+- `npm test` covers the Lich spawn, ability set, summon count and composition, recast rules and
+  replacement, collision-aware push/pull, frontal slash targeting and the exit-after-death flow.
 
 ## Layout
 
@@ -301,7 +331,8 @@ src/world/abilitySystem.js shared cast runtime for every ability category
 src/world/summons.js     totem/golem stats, combat, movement and elemental infusion
 src/world/pickups.js     collectible crystallized blood
 src/world/shrines.js     per-room shrine rolls, placement and shrine definitions
-src/world/enemies.js     enemy definitions, floor population, boss placeholder and spawn tables
+src/world/enemies.js     enemy and Lich definitions, floor population and spawn tables
+src/world/lich.js        Lich arena AI, summons, forced movement, frontal slash
 src/world/enemyAI.js     enemy states, navigation, aggro, attacks and telegraphs
 src/world/effects.js     timed effects and cooldowns
 src/world/projectile.js  projectile simulation

@@ -23,8 +23,9 @@ import { nextSeed, randomSeed, Rng } from '../world/rng.js';
 import { EntityStore } from '../world/entity.js';
 import { Character } from '../world/character.js';
 import { grantStartingFloorExperience } from '../world/progression.js';
-import { spawnBossPlaceholder, spawnFloorEnemies } from '../world/enemies.js';
+import { spawnLich, spawnFloorEnemies } from '../world/enemies.js';
 import { updateEnemy } from '../world/enemyAI.js';
+import { updateLich } from '../world/lich.js';
 import { inAttackRange, resolveMeleeAttack } from '../world/combat.js';
 import { Cooldowns, TimedEffectSystem } from '../world/effects.js';
 import { ProjectileSystem } from '../world/projectile.js';
@@ -86,6 +87,8 @@ export class Game {
     this.totalFloors = TOTAL_FLOORS;
     this.exit = null;
     this.bossDefeated = false;
+    this.lichDefeated = false;
+    this.lich = null;
     this.attackTargetId = null;
     this.attackFlash = null;
     this.chaseTimer = 0;
@@ -258,6 +261,8 @@ export class Game {
     this.floorNumber = floorNumber;
     this.exit = null;
     this.bossDefeated = false;
+    this.lichDefeated = false;
+    this.lich = null;
     this.entities.clear();
     this.projectiles.clear();
     this.areas.clear();
@@ -295,6 +300,8 @@ export class Game {
     this.grid = null;
     this.exit = null;
     this.bossDefeated = false;
+    this.lichDefeated = false;
+    this.lich = null;
     this.floorNumber = 1;
     this.attackTargetId = null;
     this.hoveredEnemy = null;
@@ -325,6 +332,8 @@ export class Game {
     this.floorNumber = floor.floorNumber ?? floorNumber;
     this.exit = null;
     this.bossDefeated = false;
+    this.lichDefeated = false;
+    this.lich = null;
 
     if (this.player) {
       this.player.x = floor.spawn.x;
@@ -350,7 +359,9 @@ export class Game {
     this.visuals.length = 0;
     this.entities.clear();
     for (const enemy of spawnFloorEnemies(floor, this.floorNumber)) this.entities.add(enemy);
-    if (floor.isBoss) this.entities.add(spawnBossPlaceholder(floor));
+    if (floor.isBoss) {
+      this.lich = this.entities.add(spawnLich(floor));
+    }
     this.combatRng = new Rng((this.seed ^ 0x7f4a7c15) >>> 0);
     this.updateHud();
   }
@@ -950,21 +961,39 @@ export class Game {
 
   updateEnemies(dt) {
     if (!this.character || !this.grid) return;
+    const hooks = {
+      damage: (entity, amount, info = {}) =>
+        this.dealDamage(entity, amount, {
+          color: this.elementColor(info.element),
+          source: info.source ?? null,
+        }),
+      beam: (from, to, element) => this.addBeam(from, to, element),
+      explosion: (x, y, radius, element) => this.addBurst(x, y, radius, element),
+      slash: (lich, facing, radius) => this.addSlash(lich.x, lich.y, facing, radius, 'melee'),
+      summon: (lich, minions) => {
+        this.addBurst(lich.x, lich.y, 2.2, 'arcane');
+        this.hud.addFloat(this.playerWorld?.x ?? 0, (this.playerWorld?.y ?? 0) - 44, 'SUMMON', '#c8b6ff');
+        this.hud.addLog(`${minions.length} undead claw out of the floor.`, '#c8b6ff');
+      },
+      push: (lich, target, result) => {
+        this.addBeam(lich, result.from, 'arcane');
+        this.hud.addFloat(this.playerWorld?.x ?? 0, (this.playerWorld?.y ?? 0) - 44, 'pushed', '#c8b6ff');
+      },
+      pull: (lich, target, result) => {
+        this.addBeam(lich, result.from, 'arcane');
+        this.hud.addFloat(this.playerWorld?.x ?? 0, (this.playerWorld?.y ?? 0) - 44, 'pulled', '#c8b6ff');
+      },
+      log: (message, color) => this.hud.addLog(message, color),
+      remove: (entity) => this.entities.remove(entity),
+      add: (entity) => this.entities.add(entity),
+    };
     const context = {
       player: this.character,
       entities: this.entities.all,
       grid: this.grid,
       rng: this.combatRng,
       abilitySystem: this.abilities,
-      hooks: {
-        damage: (entity, amount, info = {}) =>
-          this.dealDamage(entity, amount, {
-            color: this.elementColor(info.element),
-            source: info.source ?? null,
-          }),
-        beam: (from, to, element) => this.addBeam(from, to, element),
-        explosion: (x, y, radius, element) => this.addBurst(x, y, radius, element),
-      },
+      hooks,
       onMeleeHit: (enemy, target, result) => this.onEnemyMeleeHit(enemy, target, result),
     };
 
@@ -975,7 +1004,8 @@ export class Game {
         if (this.attackTargetId === enemy.id) this.clearTarget();
         continue;
       }
-      updateEnemy(enemy, dt, context);
+      if (enemy.isLich) updateLich(enemy, dt, context);
+      else updateEnemy(enemy, dt, context);
     }
   }
 
@@ -1080,11 +1110,21 @@ export class Game {
   onBossDefeated(target) {
     if (this.bossDefeated) return;
     this.bossDefeated = true;
+    if (target?.isLich) this.lichDefeated = true;
     const exitSpot = this.floor?.exitSpot ?? { x: target.x, y: target.y };
     this.exit = { x: exitSpot.x, y: exitSpot.y };
     const center = tileToWorld(this.exit.x, this.exit.y);
     this.hud.addFloat(center.x, center.y - 44, 'EXIT OPEN', '#9fd8ff');
-    this.hud.addLog('The boss falls. An exit tears open in the room.', '#f3d68a');
+    this.hud.addLog('The Lich falls. An exit tears open in the room.', '#f3d68a');
+    if (target?.isLich) {
+      this.hud.addLog('Its surviving summons keep fighting. Reach the exit to escape.', '#ffb0b0');
+      for (const entity of this.entities?.items ?? []) {
+        if (!entity?.alive || entity.summonedBy !== target.id) continue;
+        entity.aggroed = true;
+        entity.deaggroRadius = Infinity;
+        entity.leashRadius = Infinity;
+      }
+    }
   }
 
   checkBossExit() {
@@ -1125,6 +1165,19 @@ export class Game {
       ttl: 0.32,
       maxTtl: 0.32,
       color: ELEMENT_COLORS[element] ?? ELEMENT_COLORS.arcane,
+    });
+  }
+
+  addSlash(x, y, facing = 1, radius = 2.5, element = null) {
+    this.visuals.push({
+      type: 'slash',
+      x,
+      y,
+      facing,
+      radius,
+      ttl: 0.28,
+      maxTtl: 0.28,
+      color: ELEMENT_COLORS[element] ?? ELEMENT_COLORS.melee,
     });
   }
 
@@ -1374,7 +1427,7 @@ export class Game {
             tint: [1, 0.3, 0.24, 0.35 + charge * 0.5],
           });
         }
-        const enemyScale = enemy.isBoss ? 1.35 : 1;
+        const enemyScale = enemy.isLich ? 1.75 : enemy.isBoss ? 1.35 : 1;
         renderer.draw('shadow', center.x, center.y, { scale: 0.8 * enemyScale });
         renderer.draw(enemy.sprite, center.x, center.y, { flipX: enemy.facing < 0, scale: enemyScale });
         if ((enemy.stunRemaining ?? 0) > 0) {
@@ -1387,8 +1440,8 @@ export class Game {
             });
           }
         }
-        const width = 28;
-        const barY = center.y - 42;
+        const width = enemy.isLich ? 52 : 28;
+        const barY = center.y - (enemy.isLich ? 62 : 42);
         renderer.draw('bar', center.x - width / 2, barY, {
           scaleX: width / 2,
           scaleY: 2,
@@ -1446,6 +1499,17 @@ export class Game {
           tint: [visual.color[0], visual.color[1], visual.color[2], 0.9 * life],
         });
       }
+    }
+
+    for (const visual of this.visuals) {
+      if (visual.type !== 'slash') continue;
+      const center = tileToWorld(visual.x, visual.y);
+      const life = Math.max(0, visual.ttl / visual.maxTtl);
+      renderer.draw('slash', center.x + visual.facing * 18, center.y - 22, {
+        scale: 0.9 + visual.radius * 0.18,
+        tint: [visual.color[0], visual.color[1], visual.color[2], life],
+        flipX: visual.facing < 0,
+      });
     }
 
     if (this.attackFlash) {

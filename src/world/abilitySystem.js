@@ -149,6 +149,33 @@ export class AbilitySystem {
         break;
       }
 
+      case 'forcedMove': {
+        const move = ability.forcedMove ?? {};
+        const dx = target.x - caster.x;
+        const dy = target.y - caster.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < MIN_STEP) break;
+        const from = { x: target.x, y: target.y };
+        if ((move.mode ?? 'push') === 'pull') {
+          const travel = Math.min(
+            move.distance ?? 3,
+            Math.max(0, distance - (move.stopDistance ?? 0)),
+          );
+          this.pull(target, caster.x, caster.y, travel, grid);
+        } else {
+          this.knockback(target, caster.x, caster.y, move.distance ?? 3, grid);
+        }
+        events.push({
+          type: 'forcedMove',
+          target,
+          mode: move.mode ?? 'push',
+          from,
+          x: target.x,
+          y: target.y,
+        });
+        break;
+      }
+
       case 'area': {
         const area = ability.area ?? {};
 
