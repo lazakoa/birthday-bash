@@ -159,7 +159,7 @@ and `?panel=1` opens the character sheet.
   attacks, line-of-sight attack blocking, archer projectiles, mage abilities, roaming and dead-enemy
   cleanup.
 
-## Phase 6: Wizard ability kit (current build)
+## Phase 6: Wizard ability kit
 
 - Fireball impacts its target and explodes in a small radius, dealing full damage on impact and
   reduced splash damage to nearby enemies.
@@ -194,6 +194,45 @@ and `?panel=1` opens the character sheet.
   up with other summons.
 - `npm test` covers the complete Wizard kit, including infusion, golem aggro, mana depletion, slow
   expiry and summon cleanup.
+
+## Phase 7: Warrior ability kit (current build)
+
+- Bash strikes harder than a basic attack and stuns the target for two to four seconds. Stunned
+  enemies stop navigating, pursuing and attacking until the stun expires. A stun indicator marks
+  affected enemies, and repeated bashes keep the strongest active stun.
+- Berserker's Rage removes all defense and damage reduction while granting a Strength bonus, extra
+  movement speed and faster attack speed, then restores the character's original values on expiry.
+  Recasting refreshes the single rage buff instead of stacking it.
+- Parry is an automatic passive with a 15% chance to parry valid melee attacks. Ranged projectiles
+  and spells bypass it, and it never occupies a hotkey.
+- Slingshot launches a stone projectile at limited range for low damage. It is a poke and finish
+  tool, not a replacement for the sword, and has no stun or knockback.
+- Spinning Blade damages every valid enemy inside its radius, ignores dead and distant enemies, and
+  knocks survivors outward without pushing them through walls.
+- Vampiric Blessing gives each killed enemy a 5% chance to drop crystallized blood. The drop is
+  collectible, heals within the health cap, expires if left behind, and is cleared on floor
+  transitions, death and restart.
+- Rush dashes toward an enemy up to its configured range, stops just beside the target and deals
+  tackle damage. It cannot cross walls or leave the playable map, and invalid or out-of-range
+  targets are rejected before the dash starts.
+- Feedback reuses the existing systems: Spinning Blade shows a radial burst, Rush leaves a dash trail,
+  Bash shows stun sparks and a floating stun label, Berserker's Rage draws a red aura and parries
+  and dodges report in the combat log.
+
+### Phase 7 verification
+
+- All seven Warrior abilities unlock independently; passives never occupy a hotkey and actives
+  select and cast through the common controls.
+- Bash's stun always lands within its two-to-four-second bounds and freezes enemy movement for the
+  duration.
+- Berserker's Rage applies and removes every configured effect, including zeroed defense.
+- Parry triggers automatically at 15% against melee attacks only.
+- Slingshot obeys its shorter range and lower damage role.
+- Spinning Blade hits valid nearby targets and stops knockback at walls; Vampiric Blessing drops at the
+  configured chance, heals within the cap and cleans up; Rush stops at valid destinations and
+  handles blocked paths, invalid targets and range limits.
+- `npm test` covers the complete Warrior kit, including stun expiry, rage removal, melee-only parry,
+  slingshot range and damage, wall-respecting knockback, blood drops and blocked rushes.
 
 ## Layout
 

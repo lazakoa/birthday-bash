@@ -42,6 +42,7 @@ export class AbilitySystem {
     };
     const beam = hooks.beam ?? (() => {});
     const explode = hooks.explosion ?? (() => {});
+    const dashTrail = hooks.dash ?? (() => {});
     const key = cooldownKey(ability);
     const manaCost = ability.manaCost ?? 0;
     const cooldown = ability.cooldown ?? 0;
@@ -152,7 +153,8 @@ export class AbilitySystem {
         const area = ability.area ?? {};
 
         if (area.instant) {
-          for (const other of enemiesNear(caster.x, caster.y, area.radius ?? 2.5)) {
+          const radius = area.radius ?? 2.5;
+          for (const other of enemiesNear(caster.x, caster.y, radius)) {
             const result = damageTarget(other, damage, {
               ability,
               element: ability.element,
@@ -163,6 +165,8 @@ export class AbilitySystem {
               this.knockback(other, caster.x, caster.y, area.knockback, grid);
             }
           }
+          explode(caster.x, caster.y, radius, ability.element);
+          events.push({ type: 'area', x: caster.x, y: caster.y, radius });
           break;
         }
 
@@ -242,6 +246,7 @@ export class AbilitySystem {
         const stepLength = Math.max(0.02, dash.step ?? 0.12);
         const distance = Math.hypot(target.x - caster.x, target.y - caster.y);
         let travel = Math.min(Math.max(0, distance - stopDistance), ability.range);
+        const origin = { x: caster.x, y: caster.y };
 
         caster.clearPath?.();
         while (travel > MIN_STEP) {
@@ -266,6 +271,8 @@ export class AbilitySystem {
           }
         }
 
+        dashTrail(origin, { x: caster.x, y: caster.y });
+
         const reach = stopDistance + (target.radius ?? 0) + 0.5;
         if (target.alive && Math.hypot(target.x - caster.x, target.y - caster.y) <= reach) {
           const result = damageTarget(target, damage, {
@@ -274,9 +281,12 @@ export class AbilitySystem {
             source: caster,
           });
           events.push({ type: 'hit', target, result });
-          if (ability.stun) this.applyStun(target, ability.stun.min ?? 0, ability.stun.max ?? 0, rng);
+          if (ability.stun) {
+            const duration = this.applyStun(target, ability.stun.min ?? 0, ability.stun.max ?? 0, rng);
+            if (duration > 0) events.push({ type: 'stun', target, duration });
+          }
         }
-        events.push({ type: 'dash', x: caster.x, y: caster.y });
+        events.push({ type: 'dash', from: origin, x: caster.x, y: caster.y });
         break;
       }
 
@@ -287,7 +297,10 @@ export class AbilitySystem {
           source: caster,
         });
         events.push({ type: 'hit', target, result });
-        if (ability.stun) this.applyStun(target, ability.stun.min ?? 2, ability.stun.max ?? 4, rng);
+        if (ability.stun) {
+          const duration = this.applyStun(target, ability.stun.min ?? 2, ability.stun.max ?? 4, rng);
+          if (duration > 0) events.push({ type: 'stun', target, duration });
+        }
         break;
       }
 

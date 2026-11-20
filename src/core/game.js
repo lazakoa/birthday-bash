@@ -19,7 +19,7 @@ import { ProjectileSystem } from '../world/projectile.js';
 import { AreaEffectSystem } from '../world/area.js';
 import { AbilitySystem } from '../world/abilitySystem.js';
 import { createSummon, updateSummon } from '../world/summons.js';
-import { PickupSystem } from '../world/pickups.js';
+import { PickupSystem, rollBloodDrop } from '../world/pickups.js';
 import {
   hotkeySlotForCode,
   hotkeySlotForKey,
@@ -723,8 +723,9 @@ export class Game {
   maybeDropBlood(target) {
     const blessing = this.character?.vampiricBlessing;
     if (!blessing) return;
-    if (!this.combatRng.chance(blessing.chance)) return;
-    this.pickups.spawn({ x: target.x, y: target.y, heal: blessing.heal, ttl: blessing.ttl });
+    const drop = rollBloodDrop(blessing, this.combatRng);
+    if (!drop) return;
+    this.pickups.spawn({ x: target.x, y: target.y, heal: drop.heal, ttl: drop.ttl });
     const center = tileToWorld(target.x, target.y);
     this.hud.addFloat(center.x, center.y - 40, 'blood', '#ff6b8a');
   }
@@ -757,6 +758,7 @@ export class Game {
           this.dealDamage(entity, amount, { color: this.abilityColor(ability), source: this.character }),
         beam: (from, to, element) => this.addBeam(from, to, element),
         explosion: (x, y, radius, element) => this.addBurst(x, y, radius, element),
+        dash: (from, to) => this.addBeam(from, to, ability.element),
         summon: (abilityDef, caster, point) => this.spawnSummon(abilityDef, point),
       },
     });
@@ -770,6 +772,12 @@ export class Game {
       this.hud.addLog(`${ability.name} fizzles.`, '#9fd8ff');
       this.hud.addFloat(this.playerWorld.x, this.playerWorld.y - 40, 'fizzle', '#9fd8ff');
       return true;
+    }
+
+    for (const event of result.events ?? []) {
+      if (event.type !== 'stun' || !event.target) continue;
+      const center = tileToWorld(event.target.x, event.target.y);
+      this.hud.addFloat(center.x, center.y - 52, 'stunned', '#f3d68a');
     }
 
     if (target) {
@@ -1022,6 +1030,7 @@ export class Game {
     for (const summon of this.entities.byFaction('ally')) this.entities.remove(summon);
     this.projectiles.clear();
     this.areas.clear();
+    this.pickups.clear();
     this.clearTimedEffects();
     this.visuals.length = 0;
     this.abilityBar.setVisible(false);
@@ -1229,6 +1238,16 @@ export class Game {
         }
         renderer.draw('shadow', center.x, center.y, { scale: 0.8 });
         renderer.draw(enemy.sprite, center.x, center.y, { flipX: enemy.facing < 0 });
+        if ((enemy.stunRemaining ?? 0) > 0) {
+          const spin = (performance.now() / 180) % (Math.PI * 2);
+          for (let i = 0; i < 3; i++) {
+            const angle = spin + (i / 3) * Math.PI * 2;
+            renderer.draw('spark', center.x + Math.cos(angle) * 10, center.y - 48 + Math.sin(angle) * 4, {
+              scale: 3,
+              tint: [1, 0.88, 0.4, 0.95],
+            });
+          }
+        }
         const width = 28;
         const barY = center.y - 42;
         renderer.draw('bar', center.x - width / 2, barY, {
@@ -1247,6 +1266,9 @@ export class Game {
         const bob = item.moving ? Math.sin(performance.now() / 70) * 1.5 : 0;
         if (this.character?.hasBuff?.('manaShield')) {
           renderer.draw('highlight', feet.x, feet.y, { scale: 0.72, tint: [0.62, 0.5, 1, 0.38] });
+        }
+        if (this.character?.hasBuff?.('berserkersRage')) {
+          renderer.draw('highlight', feet.x, feet.y, { scale: 0.78, tint: [1, 0.36, 0.24, 0.42] });
         }
         renderer.draw('shadow', feet.x, feet.y, { tint: [1, 1, 1, 1] });
         renderer.draw(this.player.sprite ?? 'wizard', feet.x, feet.y + bob, { flipX: item.facing < 0 });

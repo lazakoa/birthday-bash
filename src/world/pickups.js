@@ -1,5 +1,11 @@
 import { Entity } from './entity.js';
 
+export function rollBloodDrop(blessing, rng = null) {
+  if (!blessing || !rng) return null;
+  if (!rng.chance(blessing.chance)) return null;
+  return { heal: blessing.heal ?? 5, ttl: blessing.ttl ?? 20 };
+}
+
 export class Pickup extends Entity {
   constructor({ x, y, kind = 'blood', name = 'Crystallized Blood', sprite = 'blood', heal = 5, ttl = 20 }) {
     super({
