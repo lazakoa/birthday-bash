@@ -10,11 +10,13 @@ The initial release includes both classes and all abilities listed below. A run 
 
 ## Technology and Presentation
 
-- The game runs in a desktop browser using WebGL.
+- The game runs in a desktop browser using raw WebGL directly, without a rendering library or game engine.
 - It is single-player and desktop-only.
 - Graphics use 2D sprites.
 - The isometric camera remains fixed on and follows the player.
 - Placeholder art, animation, sound, and music are acceptable for now.
+
+The phased implementation plan is defined in [02_implementation.md](02_implementation.md).
 
 ## Run Structure
 
