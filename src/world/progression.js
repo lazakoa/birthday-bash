@@ -11,3 +11,18 @@ export function levelUpRewards() {
     abilityPoints: PROGRESSION.abilityPointsPerLevel,
   };
 }
+
+export function experienceForSkippedFloors(floorNumber) {
+  const levels = Math.max(0, Math.floor(Number(floorNumber) || 1) - 1);
+  let total = 0;
+  for (let level = 1; level <= levels; level++) {
+    total += experienceToNextLevel(level);
+  }
+  return total;
+}
+
+export function grantStartingFloorExperience(character, floorNumber) {
+  const experience = experienceForSkippedFloors(floorNumber);
+  if (experience > 0 && character) character.awardExperience(experience);
+  return experience;
+}

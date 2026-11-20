@@ -26,6 +26,11 @@ export const SPRITE_DEFS = {
   zombie: cell(192, 256, 64, 64, 32, 56),
   bat: cell(256, 256, 64, 64, 32, 56),
   vampire: cell(320, 256, 64, 64, 32, 56),
+  shrineHealth: cell(0, 320, 64, 64, 32, 56),
+  shrineMana: cell(64, 320, 64, 64, 32, 56),
+  shrineSpeed: cell(128, 320, 64, 64, 32, 56),
+  boss: cell(192, 320, 64, 64, 32, 56),
+  exitPortal: cell(256, 320, 64, 64, 32, 56),
 };
 
 const COLORS = {
@@ -517,6 +522,72 @@ function drawVampire(g, ox, oy) {
 }
 
 
+function drawShrine(g, ox, oy, color) {
+  const cx = ox + 32;
+  const base = oy + 56;
+  poly(g, [[cx - 16, base], [cx + 16, base], [cx + 12, base - 10], [cx - 12, base - 10]], '#3b4251', '#20252f');
+  poly(g, [[cx - 8, base - 10], [cx + 8, base - 10], [cx + 6, base - 28], [cx - 6, base - 28]], '#5b6476', '#2b3140');
+  diamond(g, cx, base - 30, '#4a5263', '#262c37');
+  g.globalAlpha = 0.35;
+  g.fillStyle = color;
+  g.beginPath();
+  g.arc(cx, base - 42, 13, 0, Math.PI * 2);
+  g.fill();
+  g.globalAlpha = 1;
+  g.fillStyle = color;
+  g.beginPath();
+  g.arc(cx, base - 42, 7, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  g.beginPath();
+  g.arc(cx - 2, base - 45, 2, 0, Math.PI * 2);
+  g.fill();
+}
+
+function drawBoss(g, ox, oy) {
+  const cx = ox + 32;
+  g.fillStyle = 'rgba(126, 70, 210, 0.22)';
+  g.beginPath();
+  g.ellipse(cx, oy + 34, 24, 27, 0, 0, Math.PI * 2);
+  g.fill();
+  drawBoneFigure(g, cx, oy, { robe: true, staff: true });
+  poly(g, [[cx - 9, oy + 10], [cx - 6, oy + 2], [cx - 2, oy + 8], [cx + 2, oy + 1], [cx + 6, oy + 8], [cx + 9, oy + 10]], '#d9b64a', '#8d7420');
+  g.fillStyle = '#d68dff';
+  g.fillRect(cx - 4, oy + 15, 3, 3);
+  g.fillRect(cx + 2, oy + 15, 3, 3);
+  g.strokeStyle = 'rgba(170, 110, 255, 0.65)';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(cx, oy + 48, 18, Math.PI * 0.1, Math.PI * 0.9);
+  g.stroke();
+}
+
+function drawExitPortal(g, ox, oy) {
+  const cx = ox + 32;
+  const cy = oy + 34;
+  g.strokeStyle = 'rgba(120, 210, 255, 0.95)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.ellipse(cx, cy, 16, 22, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.strokeStyle = 'rgba(170, 240, 255, 0.6)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.ellipse(cx, cy, 11, 16, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = 'rgba(90, 170, 255, 0.28)';
+  g.beginPath();
+  g.ellipse(cx, cy, 14, 20, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = 'rgba(220, 250, 255, 0.9)';
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2 + 0.4;
+    g.beginPath();
+    g.arc(cx + Math.cos(angle) * 14, cy + Math.sin(angle) * 19, 1.6, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
 export function buildAtlasCanvas() {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_SIZE;
@@ -546,6 +617,11 @@ export function buildAtlasCanvas() {
   drawZombie(g, 192, 256);
   drawBat(g, 256, 256);
   drawVampire(g, 320, 256);
+  drawShrine(g, 0, 320, '#8ef2a6');
+  drawShrine(g, 64, 320, '#9ec9ff');
+  drawShrine(g, 128, 320, '#f3d68a');
+  drawBoss(g, 192, 320);
+  drawExitPortal(g, 256, 320);
 
   return canvas;
 }

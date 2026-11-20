@@ -36,6 +36,51 @@ export const PROGRESSION = {
   abilityPointsPerLevel: 1,
 };
 
+export const DUNGEON = {
+  regularFloors: 4,
+  bossFloor: 5,
+  totalFloors: 5,
+  bossRoomSize: 52,
+  bossRoomSpawnOffset: 5,
+  bossRoomBossOffset: 8,
+};
+
+export const SHRINES = {
+  roomChance: 0.025,
+  duration: 60,
+  spawnClearance: 2.5,
+  stairsClearance: 1.5,
+  types: {
+    health: {
+      id: 'health',
+      name: 'Health Shrine',
+      sprite: 'shrineHealth',
+      magnitude: 0.5,
+      description: '+50% health regeneration',
+      color: [0.5, 1, 0.65, 1],
+      hudColor: '#8ef2a6',
+    },
+    mana: {
+      id: 'mana',
+      name: 'Mana Shrine',
+      sprite: 'shrineMana',
+      magnitude: 0.5,
+      description: '+50% mana regeneration',
+      color: [0.55, 0.75, 1, 1],
+      hudColor: '#9ec9ff',
+    },
+    speed: {
+      id: 'speed',
+      name: 'Speed Shrine',
+      sprite: 'shrineSpeed',
+      magnitude: 0.2,
+      description: '+20% movement speed',
+      color: [1, 0.92, 0.5, 1],
+      hudColor: '#f3d68a',
+    },
+  },
+};
+
 export const FORMULAS = {
   healthPerVitality: 8,
   manaPerIntelligence: 6,
@@ -559,6 +604,20 @@ export const ENEMY_TYPES = {
     accuracy: 0.85,
     dodgeChance: 0.06,
     damageReduction: 0.05,
+  },
+  bossPlaceholder: {
+    id: 'bossPlaceholder',
+    name: 'Lich (Placeholder)',
+    sprite: 'boss',
+    maxHealth: 600,
+    maxMana: 0,
+    radius: 0.5,
+    experience: 0,
+    speed: 0,
+    stationary: true,
+    behavior: 'stationary',
+    scales: false,
+    boss: true,
   },
 };
 

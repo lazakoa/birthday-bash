@@ -41,6 +41,7 @@ export class Enemy extends Entity {
 
     this.typeId = typeId;
     this.type = type;
+    this.isBoss = type.boss === true;
     this.experience = Math.round((type.experience ?? 0) * experienceScale);
     this.speed = type.speed ?? 0;
     this.stationary = type.stationary ?? false;
@@ -196,6 +197,7 @@ function pickSpot(floor, room, rng, occupied) {
 }
 
 export function spawnFloorEnemies(floor, floorNumber = 1) {
+  if (floor.isBoss) return [];
   const level = Math.max(1, Math.floor(floorNumber));
   const rng = new Rng((floor.seed ^ 0x3c6ef372 ^ Math.imul(level, 0x9e3779b9)) >>> 0);
   const rooms = floor.rooms.filter((room) => room !== floor.spawnRoom);
@@ -230,6 +232,17 @@ export function spawnFloorEnemies(floor, floorNumber = 1) {
   }
 
   return enemies;
+}
+
+export function spawnBossPlaceholder(floor) {
+  const spot =
+    floor.bossSpawn ??
+    (floor.rooms?.[0]
+      ? { x: floor.rooms[0].cx + 0.5, y: floor.rooms[0].cy + 0.5 }
+      : { x: floor.spawn.x, y: floor.spawn.y - 2 });
+  return new Enemy('bossPlaceholder', spot.x, spot.y, {
+    floor: floor.floorNumber ?? 1,
+  });
 }
 
 export function spawnTrainingDummies(floor, count = 3) {

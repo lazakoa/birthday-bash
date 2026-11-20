@@ -20,7 +20,9 @@ class's recommended spread; `?str=1&int=4&vit=3&dex=2` overrides the allocation.
 DOM (used for headless screenshots; headless Firefox does not composite WebGL canvases).
 Development-only URL helpers also exist: `?unlock=fireball,iceSpear` grants abilities without spending
 points, `?select=fireball` selects one, `?cast=1` casts the selected ability at the nearest enemy once,
-and `?panel=1` opens the character sheet.
+`?panel=1` opens the character sheet. Add `?floor=N` to a `?class=...` start to begin on floor N with
+one level of experience per skipped floor; the character-creation screen also has a Starting floor
+selector with the same reward for testing.
 
 ## Controls
 
@@ -32,9 +34,9 @@ and `?panel=1` opens the character sheet.
 | `1` through `0` | Select the ability or Basic Attack assigned to that hotkey |
 | `k` or `c` (or the Character button) | Open the character sheet to spend stat and ability points and assign hotkeys |
 | Escape | Return left-click to the basic attack (or close the character sheet) |
-| R | Generate a new floor with a new seed |
+| R | Generate a new floor with a new seed (same floor number) |
 | Shift+R | Regenerate the current seed (same layout) |
-| S | Walk to the staircase (debug shortcut) |
+| S | Walk to the staircase on floors 1–4 (debug shortcut) |
 | H / M | Heal 25 health / restore 25 mana (debug shortcuts) |
 | T | Target the nearest enemy (debug shortcut) |
 
@@ -57,8 +59,7 @@ and `?panel=1` opens the character sheet.
 - Spawn in a randomly chosen room; staircase placed in a room roughly 80 BFS-steps away.
 - A* pathfinding on the tile grid (8-way, no corner cutting) with line-of-sight path smoothing;
   clicking a wall targets the nearest reachable floor tile.
-- Circle-versus-tile collision with wall sliding and stair-triggered floor transitions (dev placeholder
-  until Phase 8).
+- Circle-versus-tile collision with wall sliding.
 - Debug HUD shows the seed, floor number, room count and staircase position.
 
 ## Phase 3: characters and combat
@@ -195,7 +196,7 @@ and `?panel=1` opens the character sheet.
 - `npm test` covers the complete Wizard kit, including infusion, golem aggro, mana depletion, slow
   expiry and summon cleanup.
 
-## Phase 7: Warrior ability kit (current build)
+## Phase 7: Warrior ability kit
 
 - Bash strikes harder than a basic attack and stuns the target for two to four seconds. Stunned
   enemies stop navigating, pursuing and attacking until the stun expires. A stun indicator marks
@@ -234,6 +235,40 @@ and `?panel=1` opens the character sheet.
 - `npm test` covers the complete Warrior kit, including stun expiry, rage removal, melee-only parry,
   slingshot range and damage, wall-respecting knockback, blood drops and blocked rushes.
 
+## Phase 8: shrines and complete run flow (current build)
+
+- The dungeon now has five floors: four BSP-generated 50-room floors followed by one unpartitioned
+  boss arena. Staircases on floors 1–4 carry the same character forward, preserving stats, health,
+  mana, experience, unlocked abilities, buffs, cooldowns and shrine timers.
+- Rooms on floors 1–4 each make an independent 2.5% shrine roll. Health, Mana and Speed Shrines
+  grant +50% health regeneration, +50% mana regeneration and +20% movement speed for 60 seconds.
+- Shrine bonuses stack additively. Every activation owns an independent 60-second timer, so two
+  Health Shrines give +100% regeneration and expire separately.
+- The HUD status panel shows the floor out of five, the boss-floor marker and every active effect
+  (shrine or buff) with its remaining duration. Shrine pickups also produce floating text and log
+  lines.
+- Floor 5 contains a temporary placeholder boss. Killing it opens an exit in the arena; reaching the
+  exit alive completes the run. Death or victory allows a restart from class selection with a fresh
+  level-one character and a newly generated dungeon, with no persistent progression.
+- The character-creation screen includes a Starting floor selector. Choosing a later floor grants one
+  full level of experience per skipped floor, so tests can reach later floors with level-up points.
+- Shrines, the boss placeholder and the exit have placeholder sprite-art in the procedural atlas.
+
+### Phase 8 verification
+
+- A generated run always contains four validated 50-room floors followed by one unpartitioned boss
+  floor with walkable spawn, boss and exit positions.
+- The same seed and floor number reproduce the same layout, shrine placement and shrine types.
+- Every room on floors 1–4 rolls the configured 2.5% shrine chance independently; placed shrines are
+  walkable and clear of the spawn and staircase.
+- Shrine effects stack additively, expire on their own timers and survive floor transitions; they
+  do not produce negative bonuses when an application expires.
+- The boss floor has no regular enemy population, only the placeholder boss. Its room is a single
+  open arena with a distant player spawn.
+- `npm test` covers the five-floor run, boss layout, deterministic shrine rolls, per-room shrine
+  chances, additive stacking with independent timers, effect retention across floors, the boss
+  placeholder and the one-level-per-skipped-floor starting experience.
+
 ## Layout
 
 ```
@@ -265,14 +300,15 @@ src/world/abilities.js   ability definitions, lookup, validation, hotkeys and pa
 src/world/abilitySystem.js shared cast runtime for every ability category
 src/world/summons.js     totem/golem stats, combat, movement and elemental infusion
 src/world/pickups.js     collectible crystallized blood
-src/world/enemies.js     enemy definitions, floor population and spawn tables
+src/world/shrines.js     per-room shrine rolls, placement and shrine definitions
+src/world/enemies.js     enemy definitions, floor population, boss placeholder and spawn tables
 src/world/enemyAI.js     enemy states, navigation, aggro, attacks and telegraphs
 src/world/effects.js     timed effects and cooldowns
 src/world/projectile.js  projectile simulation
 src/world/area.js        radial damage and timed area effects
 src/world/rng.js         seeded PRNG, seed derivation
 src/world/bsp.js         BSP partition, rooms, hallway rectangles
-src/world/floor.js       floor assembly, spawn/stairs placement, validation
+src/world/floor.js       regular and boss floor assembly, spawn/stairs/shrine placement, validation
 src/world/pathfinding.js A* pathfinding, smoothing, line of sight, BFS distances
 test/                    node:test suites for non-rendering logic
 tools/dev-server.mjs     dependency-free static dev server

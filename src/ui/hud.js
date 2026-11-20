@@ -20,7 +20,7 @@ export class Hud {
     this.elements.status.hidden = true;
   }
 
-  setStatus(character, { floorNumber = 1, seed = 0, buffs = [] } = {}) {
+  setStatus(character, { floorNumber = 1, totalFloors = 1, seed = 0, buffs = [], isBossFloor = false } = {}) {
     if (!character) {
       this.hideStatus();
       return;
@@ -42,8 +42,8 @@ export class Hud {
       `Defense ${character.defense}   Dodge ${(character.dodgeChance * 100).toFixed(1)}%   ` +
       `Accuracy ${(character.accuracy * 100).toFixed(0)}%\n` +
       `Left-click: ${selected ? selected.name : 'basic attack'}   (k/c: abilities)\n` +
-      (buffLines.length > 0 ? `Buffs: ${buffLines.join(', ')}\n` : '') +
-      `Floor ${floorNumber}   Seed ${seed}`;
+      (buffLines.length > 0 ? `Effects: ${buffLines.join(', ')}\n` : '') +
+      `Floor ${floorNumber} / ${totalFloors}${isBossFloor ? ' — boss floor' : ''}   Seed ${seed}`;
   }
 
   setTarget(entity) {

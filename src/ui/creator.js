@@ -1,4 +1,4 @@
-import { CHARACTER, CLASSES } from '../config.js';
+import { CHARACTER, CLASSES, DUNGEON } from '../config.js';
 import { createBaseStats, deriveStats } from '../world/stats.js';
 
 export class CharacterCreator {
@@ -10,6 +10,7 @@ export class CharacterCreator {
     pointsElement,
     abilityElement,
     previewElement,
+    floorElement,
     startButton,
     onStart,
   }) {
@@ -20,9 +21,11 @@ export class CharacterCreator {
     this.pointsElement = pointsElement;
     this.abilityElement = abilityElement;
     this.previewElement = previewElement;
+    this.floorElement = floorElement;
     this.startButton = startButton;
     this.onStart = onStart;
     this.selectedClass = null;
+    this.selectedFloor = 1;
     this.stats = createBaseStats();
     this.statPoints = CHARACTER.startingStatPoints;
     this.valueElements = new Map();
@@ -30,6 +33,7 @@ export class CharacterCreator {
 
     this.buildClassCards();
     this.buildStatRows();
+    this.buildFloorOptions();
     this.bindEvents();
     this.reset();
   }
@@ -98,6 +102,21 @@ export class CharacterCreator {
     }
   }
 
+  buildFloorOptions() {
+    if (!this.floorElement) return;
+    this.floorElement.replaceChildren();
+    for (let floorNumber = 1; floorNumber <= DUNGEON.totalFloors; floorNumber++) {
+      const option = document.createElement('option');
+      option.value = String(floorNumber);
+      const levels = floorNumber - 1;
+      const levelText = levels > 0 ? ` — +${levels} level${levels === 1 ? '' : 's'} of XP` : '';
+      const bossText = floorNumber === DUNGEON.bossFloor ? ' (boss)' : '';
+      option.textContent = `Floor ${floorNumber}${bossText}${levelText}`;
+      this.floorElement.appendChild(option);
+    }
+    this.floorElement.value = '1';
+  }
+
   bindEvents() {
     const signal = this.abort.signal;
 
@@ -111,6 +130,12 @@ export class CharacterCreator {
       const button = event.target.closest('[data-stat][data-delta]');
       if (!button) return;
       this.changeStat(button.dataset.stat, Number(button.dataset.delta));
+    }, { signal });
+
+    this.floorElement?.addEventListener('change', () => {
+      const value = Number(this.floorElement.value);
+      this.selectedFloor = Math.max(1, Math.min(DUNGEON.totalFloors, Math.floor(value) || 1));
+      this.render();
     }, { signal });
 
     this.startButton.addEventListener('click', () => this.submit(), { signal });
@@ -138,6 +163,7 @@ export class CharacterCreator {
 
   reset() {
     this.selectedClass = null;
+    this.selectedFloor = 1;
     this.stats = createBaseStats();
     this.statPoints = CHARACTER.startingStatPoints;
     this.render();
@@ -153,7 +179,7 @@ export class CharacterCreator {
 
   submit() {
     if (!this.selectedClass) return;
-    this.onStart?.(this.selectedClass, { ...this.stats });
+    this.onStart?.(this.selectedClass, { ...this.stats }, this.selectedFloor);
   }
 
   render() {
@@ -166,6 +192,10 @@ export class CharacterCreator {
     this.startButton.disabled = !this.selectedClass;
     this.pointsElement.textContent = String(this.statPoints);
     this.abilityElement.textContent = String(CHARACTER.startingAbilityPoints);
+    if (this.floorElement) {
+      this.floorElement.value = String(this.selectedFloor);
+      this.floorElement.disabled = !this.selectedClass;
+    }
 
     for (const [stat, elements] of this.valueElements) {
       elements.value.textContent = String(this.stats[stat]);

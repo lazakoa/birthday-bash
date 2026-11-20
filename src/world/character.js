@@ -27,6 +27,7 @@ export class Character extends Player {
     this.hotbar[0] = BASIC_ATTACK_ID;
     this.selectedAbilityId = null;
     this.buffs = new Map();
+    this.shrineBonuses = { health: 0, mana: 0, speed: 0 };
     this.parryChance = 0;
     this.vampiricBlessing = null;
     this.baseSpeed = PLAYER.speedTilesPerSecond;
@@ -79,11 +80,14 @@ export class Character extends Player {
     }
 
     const derived = deriveStats(this.classId, effectiveStats, this.weapon);
+    const shrineHealth = this.shrineBonuses?.health ?? 0;
+    const shrineMana = this.shrineBonuses?.mana ?? 0;
+    const shrineSpeed = this.shrineBonuses?.speed ?? 0;
     this.effectiveStats = effectiveStats;
     this.maxHealth = derived.maxHealth;
     this.maxMana = derived.maxMana;
-    this.healthRegen = derived.healthRegen;
-    this.manaRegen = derived.manaRegen;
+    this.healthRegen = derived.healthRegen * (1 + shrineHealth);
+    this.manaRegen = derived.manaRegen * (1 + shrineMana);
     this.meleeDamageBonus = derived.meleeDamageBonus;
     this.spellDamageBonus = derived.spellDamageBonus;
     this.defense = bonuses.zeroDefense ? 0 : derived.defense;
@@ -95,7 +99,8 @@ export class Character extends Player {
 
     this.buffSpeedMultiplier = bonuses.speedMultiplier;
     this.attackSpeedMultiplier = bonuses.attackSpeedMultiplier;
-    this.speed = (this.baseSpeed ?? PLAYER.speedTilesPerSecond) * bonuses.speedMultiplier;
+    this.speed =
+      (this.baseSpeed ?? PLAYER.speedTilesPerSecond) * bonuses.speedMultiplier * (1 + shrineSpeed);
 
     const filters = [];
     for (const buff of this.buffs.values()) {
@@ -129,6 +134,29 @@ export class Character extends Player {
 
   hasBuff(id) {
     return this.buffs.has(id);
+  }
+
+  addShrine(type, magnitude) {
+    if (!(type in this.shrineBonuses)) return false;
+    const amount = Math.max(0, Number(magnitude) || 0);
+    if (amount <= 0) return false;
+    this.shrineBonuses[type] += amount;
+    this.recalculate();
+    return true;
+  }
+
+  removeShrine(type, magnitude) {
+    if (!(type in this.shrineBonuses)) return false;
+    const amount = Math.max(0, Number(magnitude) || 0);
+    if (amount <= 0 || this.shrineBonuses[type] <= 0) return false;
+    this.shrineBonuses[type] = Math.max(0, this.shrineBonuses[type] - amount);
+    this.recalculate();
+    return true;
+  }
+
+  clearShrines() {
+    this.shrineBonuses = { health: 0, mana: 0, speed: 0 };
+    this.recalculate();
   }
 
   levelUp() {

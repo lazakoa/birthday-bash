@@ -38,7 +38,7 @@
       <div id="combat-layer"></div>
       <div id="ability-bar" hidden></div>
       <div id="hud-help">
-        <strong>Birthday Bash</strong> &mdash; Phase 5 enemy roster and floor population<br />
+        <strong>Birthday Bash</strong> &mdash; Phase 8 shrines, floors and run flow<br />
         Right-click: move &nbsp;|&nbsp; Left-click enemy: attack &nbsp;|&nbsp; 1-0: select ability &nbsp;|&nbsp;
         Left-click: cast selected ability &nbsp;|&nbsp; Esc: back to basic attack<br />
         k / c: abilities and stats &nbsp;|&nbsp; R: new floor &nbsp;|&nbsp; Shift+R: same floor &nbsp;|&nbsp; S: stairs<br />
@@ -67,7 +67,7 @@
     <div id="create" hidden>
       <div class="create-panel">
         <h1>Birthday Bash</h1>
-        <p class="create-sub">Choose a class, allocate your ten starting stat points, then enter the Lich's Den.</p>
+        <p class="create-sub">Choose a class, allocate your ten starting stat points, then enter the Lich's Den. Starting on a later floor grants one level of experience per skipped floor for testing.</p>
         <div id="create-classes"></div>
         <div id="create-stats" hidden>
           <div class="create-points">
@@ -76,6 +76,10 @@
           </div>
           <div id="create-stat-rows"></div>
           <div id="create-preview"></div>
+          <label class="create-floor">
+            <span>Starting floor</span>
+            <select id="create-floor"></select>
+          </label>
           <button id="create-start" type="button" disabled>Enter the dungeon</button>
         </div>
       </div>

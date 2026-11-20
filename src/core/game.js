@@ -1,4 +1,15 @@
-import { RENDER, TUNING, COMBAT, CHARACTER, CLASSES, PLAYER, PROGRESSION, ABILITY_HOTKEYS, ELEMENT_COLORS } from '../config.js';
+import {
+  RENDER,
+  TUNING,
+  COMBAT,
+  CHARACTER,
+  CLASSES,
+  PLAYER,
+  PROGRESSION,
+  ABILITY_HOTKEYS,
+  ELEMENT_COLORS,
+  SHRINES,
+} from '../config.js';
 import { Loop } from './loop.js';
 import { Input } from './input.js';
 import { createGL } from '../gfx/gl.js';
@@ -6,12 +17,13 @@ import { SpriteRenderer } from '../gfx/renderer.js';
 import { buildAtlasCanvas } from '../gfx/atlas.js';
 import { screenToTile, screenToWorld, tileToWorld } from '../gfx/iso.js';
 import { createCamera, followCamera as followCameraStep } from '../gfx/camera.js';
-import { generateFloor } from '../world/floor.js';
+import { generateFloor, TOTAL_FLOORS } from '../world/floor.js';
 import { findPath, nearestWalkableTile, smoothPath } from '../world/pathfinding.js';
 import { nextSeed, randomSeed, Rng } from '../world/rng.js';
 import { EntityStore } from '../world/entity.js';
 import { Character } from '../world/character.js';
-import { spawnFloorEnemies } from '../world/enemies.js';
+import { grantStartingFloorExperience } from '../world/progression.js';
+import { spawnBossPlaceholder, spawnFloorEnemies } from '../world/enemies.js';
 import { updateEnemy } from '../world/enemyAI.js';
 import { inAttackRange, resolveMeleeAttack } from '../world/combat.js';
 import { Cooldowns, TimedEffectSystem } from '../world/effects.js';
@@ -71,6 +83,9 @@ export class Game {
     this.grid = null;
     this.seed = 0;
     this.floorNumber = 1;
+    this.totalFloors = TOTAL_FLOORS;
+    this.exit = null;
+    this.bossDefeated = false;
     this.attackTargetId = null;
     this.attackFlash = null;
     this.chaseTimer = 0;
@@ -95,6 +110,8 @@ export class Game {
     this.captureAfter = Number(params.get('capture')) || 0;
     this.autoWalk = params.get('walk') === 'stairs';
     this.speedMultiplier = Number(params.get('speed')) || 1;
+    const requestedFloor = Math.floor(Number(params.get('floor')) || 1);
+    this.requestedFloor = Math.max(1, Math.min(TOTAL_FLOORS, requestedFloor));
 
     this.loop = new Loop({
       update: (dt) => this.update(dt),
@@ -108,9 +125,9 @@ export class Game {
     const autoClass = CLASSES[requestedClass] ? requestedClass : this.captureAfter ? 'wizard' : null;
     if (autoClass) {
       const stats = this.parseStatParams(params) ?? CLASSES[autoClass].recommended;
-      this.startRun(autoClass, stats);
+      this.startRun(autoClass, stats, this.requestedFloor);
       this.applyDebugAbilityParams(params);
-      if (this.autoWalk) this.moveToTile(this.floor.stairs);
+      if (this.autoWalk && this.floor.stairs) this.moveToTile(this.floor.stairs);
     } else {
       this.showCreation();
     }
@@ -179,8 +196,9 @@ export class Game {
       pointsElement: byId('create-points'),
       abilityElement: byId('create-ability'),
       previewElement: byId('create-preview'),
+      floorElement: byId('create-floor'),
       startButton: byId('create-start'),
-      onStart: (classId, stats) => this.startRun(classId, stats),
+      onStart: (classId, stats, floor) => this.startRun(classId, stats, floor),
     });
     this.abilityBar = new AbilityBar({
       root: byId('ability-bar'),
@@ -223,7 +241,8 @@ export class Game {
     return found ? stats : null;
   }
 
-  startRun(classId, allocation = {}) {
+  startRun(classId, allocation = {}, startFloor = 1) {
+    const floorNumber = Math.max(1, Math.min(TOTAL_FLOORS, Math.floor(Number(startFloor) || 1)));
     const character = new Character(classId);
     for (const stat of CHARACTER.statOrder) {
       const amount = Math.max(0, Math.floor(allocation?.[stat] ?? 0));
@@ -231,11 +250,14 @@ export class Game {
     }
     character.baseSpeed = PLAYER.speedTilesPerSecond * this.speedMultiplier;
     character.recalculate({ fill: true });
+    const skippedExperience = grantStartingFloorExperience(character, floorNumber);
 
     this.character = character;
     this.player = character;
     this.state = 'playing';
-    this.floorNumber = 1;
+    this.floorNumber = floorNumber;
+    this.exit = null;
+    this.bossDefeated = false;
     this.entities.clear();
     this.projectiles.clear();
     this.areas.clear();
@@ -250,9 +272,18 @@ export class Game {
     this.abilityPanel.hide();
     this.overlayElement.hidden = true;
 
-    this.loadFloor(randomSeed());
+    this.loadFloor(randomSeed(), floorNumber);
     this.hud.showStatus();
-    this.hud.addLog(`${character.className} enters the Lich's Den.`, '#f3d68a');
+    this.hud.addLog(
+      `${character.className} enters the Lich's Den. Floor ${floorNumber} of ${this.totalFloors}.`,
+      '#f3d68a',
+    );
+    if (skippedExperience > 0) {
+      this.hud.addLog(
+        `Testing shortcut: awarded ${floorNumber - 1} level${floorNumber === 2 ? '' : 's'} of experience.`,
+        '#9fc4ff',
+      );
+    }
     this.canvas.focus();
   }
 
@@ -262,6 +293,9 @@ export class Game {
     this.player = null;
     this.floor = null;
     this.grid = null;
+    this.exit = null;
+    this.bossDefeated = false;
+    this.floorNumber = 1;
     this.attackTargetId = null;
     this.hoveredEnemy = null;
     this.attackFlash = null;
@@ -283,11 +317,14 @@ export class Game {
     this.canvas.blur();
   }
 
-  loadFloor(seed) {
-    const floor = generateFloor(seed);
+  loadFloor(seed, floorNumber = this.floorNumber) {
+    const floor = generateFloor(seed, floorNumber);
     this.floor = floor;
     this.grid = floor.grid;
     this.seed = floor.seed;
+    this.floorNumber = floor.floorNumber ?? floorNumber;
+    this.exit = null;
+    this.bossDefeated = false;
 
     if (this.player) {
       this.player.x = floor.spawn.x;
@@ -305,14 +342,15 @@ export class Game {
     this.attackTargetId = null;
     this.chaseTimer = 0;
     this.pathPoints = [];
-    this.clearTimedEffects();
-    this.cooldowns.clear();
+    if (this.character) this.effects.retainFor(this.character);
+    else this.effects.clear();
     this.projectiles.clear();
     this.areas.clear();
     this.pickups.clear();
     this.visuals.length = 0;
     this.entities.clear();
     for (const enemy of spawnFloorEnemies(floor, this.floorNumber)) this.entities.add(enemy);
+    if (floor.isBoss) this.entities.add(spawnBossPlaceholder(floor));
     this.combatRng = new Rng((this.seed ^ 0x7f4a7c15) >>> 0);
     this.updateHud();
   }
@@ -408,7 +446,7 @@ export class Game {
       return;
     }
 
-    if (this.state === 'dead') {
+    if (this.state === 'dead' || this.state === 'victory') {
       this.hud.update(dt);
       for (const key of this.input.consumeKeys()) {
         if (key.code === 'Enter' || key.code === 'NumpadEnter') this.showCreation();
@@ -429,6 +467,7 @@ export class Game {
     this.areas.update(dt, { grid: this.grid, entities: this.entities.all });
     this.updateSummons(dt);
     this.updatePickups(dt);
+    this.updateShrines();
     this.updateVisuals(dt);
     this.updateAttackTarget(dt);
 
@@ -438,6 +477,7 @@ export class Game {
     this.followCamera(dt);
     this.updateHover();
     this.checkPlayerDeath();
+    this.checkBossExit();
 
     if (this.clickMarker) {
       this.clickMarker.ttl -= dt;
@@ -474,7 +514,8 @@ export class Game {
         this.loadFloor(key.shiftKey ? this.seed : randomSeed());
         this.hud.addLog(key.shiftKey ? 'Rebuilt the current floor.' : 'A new floor takes shape.', '#9fc4ff');
       } else if (key.code === 'KeyS') {
-        this.moveToTile(this.floor.stairs);
+        if (this.floor.stairs) this.moveToTile(this.floor.stairs);
+        else this.hud.addLog('There are no stairs on the boss floor.', '#9fb0d0');
       } else if (key.code === 'KeyH') {
         const healed = this.character.heal(25);
         if (healed > 0) this.hud.addFloat(this.playerWorld.x, this.playerWorld.y - 28, `+${Math.round(healed)}`, '#8ef2a6');
@@ -716,6 +757,7 @@ export class Game {
     }
 
     this.maybeDropBlood(target);
+    if (target.isBoss) this.onBossDefeated(target);
     this.entities.remove(target);
     if (this.attackTargetId === target.id) this.clearTarget();
   }
@@ -992,6 +1034,77 @@ export class Game {
     });
   }
 
+  updateShrines() {
+    const shrineList = this.floor?.shrines;
+    if (!shrineList || shrineList.length === 0 || !this.character?.alive) return;
+    const reach = 0.75 + (this.player.radius ?? 0);
+    const remaining = [];
+    for (const shrine of shrineList) {
+      if (Math.hypot(shrine.x - this.player.x, shrine.y - this.player.y) <= reach) {
+        this.activateShrine(shrine);
+      } else {
+        remaining.push(shrine);
+      }
+    }
+    this.floor.shrines = remaining;
+  }
+
+  activateShrine(shrine) {
+    const character = this.character;
+    const type = SHRINES.types[shrine.type];
+    if (!character || !type) return false;
+
+    character.addShrine(shrine.type, shrine.magnitude);
+    const duration = SHRINES.duration;
+    this.effects.add({
+      target: character,
+      name: `shrine:${shrine.type}`,
+      label: type.name,
+      duration,
+      magnitude: shrine.magnitude,
+      data: { shrine: shrine.type },
+      onExpire: () => {
+        character.removeShrine(shrine.type, shrine.magnitude);
+        this.hud.addLog(`${type.name} fades.`, '#9fb0d0');
+        this.updateHud();
+      },
+    });
+
+    const center = tileToWorld(shrine.x, shrine.y);
+    this.hud.addFloat(center.x, center.y - 34, type.description, type.hudColor);
+    this.hud.addLog(`${type.name}: ${type.description} for ${duration}s.`, type.hudColor);
+    this.updateHud();
+    return true;
+  }
+
+  onBossDefeated(target) {
+    if (this.bossDefeated) return;
+    this.bossDefeated = true;
+    const exitSpot = this.floor?.exitSpot ?? { x: target.x, y: target.y };
+    this.exit = { x: exitSpot.x, y: exitSpot.y };
+    const center = tileToWorld(this.exit.x, this.exit.y);
+    this.hud.addFloat(center.x, center.y - 44, 'EXIT OPEN', '#9fd8ff');
+    this.hud.addLog('The boss falls. An exit tears open in the room.', '#f3d68a');
+  }
+
+  checkBossExit() {
+    if (this.state !== 'playing' || !this.exit || !this.character?.alive) return;
+    if (Math.hypot(this.exit.x - this.player.x, this.exit.y - this.player.y) > 0.7) return;
+    this.completeRun();
+  }
+
+  completeRun() {
+    if (this.state !== 'playing') return;
+    this.state = 'victory';
+    this.player.clearPath();
+    this.clearTarget();
+    this.character.resetSelection();
+    this.abilityBar.setVisible(false);
+    this.abilityPanel.hide();
+    this.hud.addLog(`${this.character.className} escapes the Lich's Den!`, '#f3d68a');
+    this.showOverlay('You escaped the Lich\'s Den!\n\nPress Enter to create a new character.');
+  }
+
   addBeam(from, to, element = null) {
     this.visuals.push({
       type: 'beam',
@@ -1061,12 +1174,18 @@ export class Game {
   }
 
   checkStairs() {
+    if (!this.floor?.stairs || this.floor.isBoss) return;
     const dx = this.floor.stairs.x - this.player.x;
     const dy = this.floor.stairs.y - this.player.y;
     if (Math.hypot(dx, dy) > 0.6) return;
-    this.floorNumber += 1;
-    this.loadFloor(nextSeed(this.seed));
-    this.hud.addLog(`Descending to floor ${this.floorNumber}.`, '#9fc4ff');
+    const nextFloor = this.floorNumber + 1;
+    this.loadFloor(nextSeed(this.seed), nextFloor);
+    this.hud.addLog(
+      this.floor.isBoss
+        ? `Descending to floor ${nextFloor} — the boss floor.`
+        : `Descending to floor ${nextFloor} of ${this.totalFloors}.`,
+      '#9fc4ff',
+    );
   }
 
   followCamera(dt) {
@@ -1138,8 +1257,27 @@ export class Game {
       }
     }
 
-    const stairsCenter = tileToWorld(this.floor.stairs.x, this.floor.stairs.y);
-    renderer.draw('stairs', stairsCenter.x, stairsCenter.y);
+    if (this.floor.stairs) {
+      const stairsCenter = tileToWorld(this.floor.stairs.x, this.floor.stairs.y);
+      renderer.draw('stairs', stairsCenter.x, stairsCenter.y);
+    }
+
+    for (const shrine of this.floor.shrines ?? []) {
+      const center = tileToWorld(shrine.x, shrine.y);
+      const bob = Math.sin(performance.now() / 320 + shrine.id) * 2;
+      renderer.draw('shadow', center.x, center.y, { scale: 0.45 });
+      renderer.draw(shrine.sprite, center.x, center.y + bob);
+    }
+
+    if (this.exit) {
+      const center = tileToWorld(this.exit.x, this.exit.y);
+      const pulse = 1 + Math.sin(performance.now() / 260) * 0.08;
+      renderer.draw('highlight', center.x, center.y, {
+        scale: 0.6 * pulse,
+        tint: [0.55, 0.85, 1, 0.35],
+      });
+      renderer.draw('exitPortal', center.x, center.y - 6, { scale: pulse });
+    }
 
     const target = this.entities.find(this.attackTargetId);
     if (target?.alive) {
@@ -1236,8 +1374,9 @@ export class Game {
             tint: [1, 0.3, 0.24, 0.35 + charge * 0.5],
           });
         }
-        renderer.draw('shadow', center.x, center.y, { scale: 0.8 });
-        renderer.draw(enemy.sprite, center.x, center.y, { flipX: enemy.facing < 0 });
+        const enemyScale = enemy.isBoss ? 1.35 : 1;
+        renderer.draw('shadow', center.x, center.y, { scale: 0.8 * enemyScale });
+        renderer.draw(enemy.sprite, center.x, center.y, { flipX: enemy.facing < 0, scale: enemyScale });
         if ((enemy.stunRemaining ?? 0) > 0) {
           const spin = (performance.now() / 180) % (Math.PI * 2);
           for (let i = 0; i < 3; i++) {
@@ -1385,7 +1524,7 @@ export class Game {
     const selectedAbility = character?.selectedAbility();
     const buffs = character
       ? this.effects.activeFor(character).map((effect) => ({
-          name: findAbilityById(effect.name)?.name ?? effect.name,
+          name: effect.label ?? findAbilityById(effect.name)?.name ?? effect.name,
           remaining: effect.remaining,
         }))
       : [];
@@ -1402,11 +1541,19 @@ export class Game {
         ? `str ${character.stats.strength} int ${character.stats.intelligence} vit ${character.stats.vitality} ` +
           `dex ${character.stats.dexterity}   points ${character.statPoints}/${character.abilityPoints}`
         : '',
-      this.floor ? `seed ${this.seed}   floor ${this.floorNumber}   rooms ${this.floor.roomCount}` : '',
+      this.floor
+        ? `seed ${this.seed}   floor ${this.floorNumber}/${this.totalFloors}` +
+          `${this.floor.isBoss ? ' (boss)' : ''}   rooms ${this.floor.roomCount}   ` +
+          `shrines ${this.floor.shrines?.length ?? 0}   exit ${this.exit ? 'open' : 'closed'}`
+        : '',
       this.player
         ? `player ${this.player.x.toFixed(2)}, ${this.player.y.toFixed(2)}   dest ${dest}`
         : '',
-      this.floor ? `stairs ${this.floor.stairs.x.toFixed(1)}, ${this.floor.stairs.y.toFixed(1)}` : '',
+      this.floor
+        ? this.floor.stairs
+          ? `stairs ${this.floor.stairs.x.toFixed(1)}, ${this.floor.stairs.y.toFixed(1)}`
+          : 'stairs none'
+        : '',
       `target ${targetText}   enemies ${enemies.length}   ` +
         `aggro ${enemies.filter((enemy) => enemy.aggroed).length}   ` +
         `summons ${this.entities.byFaction('ally').length}   pickups ${this.pickups.size}`,
@@ -1419,7 +1566,13 @@ export class Game {
     ].filter(Boolean).join('\n');
 
     if (character) {
-      this.hud.setStatus(character, { floorNumber: this.floorNumber, seed: this.seed, buffs });
+      this.hud.setStatus(character, {
+        floorNumber: this.floorNumber,
+        totalFloors: this.totalFloors,
+        seed: this.seed,
+        buffs,
+        isBossFloor: this.floor?.isBoss ?? false,
+      });
       this.hud.setTarget(target ?? this.hoveredEnemy);
       this.abilityBar.refresh(character, { cooldowns: this.cooldowns });
       if (this.abilityPanel.isOpen()) {

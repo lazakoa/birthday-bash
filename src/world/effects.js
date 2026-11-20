@@ -4,12 +4,13 @@ export class TimedEffectSystem {
     this.nextId = 1;
   }
 
-  add({ target = null, name, duration, magnitude = 0, data = null, onExpire = null } = {}) {
+  add({ target = null, name, label = null, duration, magnitude = 0, data = null, onExpire = null } = {}) {
     if (!name || !(duration > 0)) return null;
     const effect = {
       id: this.nextId++,
       target,
       name,
+      label,
       duration,
       remaining: duration,
       magnitude,
@@ -57,6 +58,11 @@ export class TimedEffectSystem {
     const removed = this.activeFor(target);
     this.items = this.items.filter((effect) => effect.target !== target);
     return removed;
+  }
+
+  retainFor(target) {
+    this.items = this.items.filter((effect) => effect.target === target);
+    return this.items;
   }
 
   clear() {
