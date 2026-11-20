@@ -34,27 +34,57 @@ export function updateEnemy(enemy, dt, context) {
   }
 
   const { player, grid } = context;
-  if (!player || !player.alive || !grid) return;
+  if (!grid) return;
 
-  const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  const seesPlayer = hasLineOfSight(grid, enemy.x, enemy.y, player.x, player.y, SIGHT_RADIUS);
+  const golem = selectGolemTarget(enemy, context);
+  const target = golem ?? (player?.alive ? player : null);
+  const distance = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
+  const seesTarget = target
+    ? hasLineOfSight(grid, enemy.x, enemy.y, target.x, target.y, SIGHT_RADIUS)
+    : false;
+  const taunted = target != null && target === golem;
 
   if (!enemy.aggroed) {
-    if (distance <= enemy.aggroRadius && (seesPlayer || distance <= AGGRO_TOUCH_RANGE)) {
+    const radius = taunted ? golem.aggroRadius ?? enemy.aggroRadius : enemy.aggroRadius;
+    if (target && distance <= radius && (seesTarget || distance <= AGGRO_TOUCH_RANGE)) {
       enterAggro(enemy);
     }
   } else if (
+    !target ||
     distance > enemy.deaggroRadius ||
     Math.hypot(enemy.x - enemy.homeX, enemy.y - enemy.homeY) > enemy.leashRadius
   ) {
     releaseAggro(enemy);
   }
 
-  if (enemy.aggroed) {
-    updateCombat(enemy, dt, context, distance, seesPlayer);
+  if (enemy.aggroed && target) {
+    enemy.targetId = target.id;
+    updateCombat(enemy, dt, context, target, distance, seesTarget);
   } else {
+    enemy.targetId = null;
     updateIdle(enemy, dt, context);
   }
+}
+
+function selectGolemTarget(enemy, context) {
+  const { entities = [], player } = context;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const entity of entities) {
+    if (!entity || entity === player || !entity.alive) continue;
+    if (entity.kind !== 'summon' || entity.type !== 'golem') continue;
+    if (entity.faction === enemy.faction) continue;
+    const distance = Math.hypot(entity.x - enemy.x, entity.y - enemy.y);
+    const tauntRange = entity.aggroRadius ?? enemy.aggroRadius;
+    const holdsAggro =
+      enemy.aggroed && enemy.targetId === entity.id && distance <= enemy.deaggroRadius;
+    if (distance > tauntRange && !holdsAggro) continue;
+    if (distance < bestDistance) {
+      best = entity;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 function enterAggro(enemy) {
@@ -73,9 +103,10 @@ function releaseAggro(enemy) {
   enemy.path.length = 0;
   enemy.pendingAbility = null;
   enemy.windup = 0;
+  enemy.targetId = null;
 }
 
-function updateCombat(enemy, dt, context, distance, seesPlayer) {
+function updateCombat(enemy, dt, context, target, distance, seesTarget) {
   if (enemy.state === ENEMY_STATES.AGGRO) {
     if (enemy.stateTimer <= 0) enemy.state = ENEMY_STATES.PURSUIT;
     return;
@@ -85,14 +116,14 @@ function updateCombat(enemy, dt, context, distance, seesPlayer) {
     enemy.windup -= dt;
     if (enemy.windup > 0) return;
     enemy.windup = 0;
-    resolveAttack(enemy, context, distance, seesPlayer);
+    resolveAttack(enemy, context, target, distance, seesTarget);
     enemy.attackTimer = enemy.attackCooldown;
     enemy.state = ENEMY_STATES.PURSUIT;
     return;
   }
 
   if (enemy.attackTimer <= 0) {
-    const plan = planAttack(enemy, context, distance, seesPlayer);
+    const plan = planAttack(enemy, context, target, distance, seesTarget);
     if (plan) {
       enemy.state = ENEMY_STATES.ATTACK;
       enemy.windup = enemy.windupTime;
@@ -104,17 +135,16 @@ function updateCombat(enemy, dt, context, distance, seesPlayer) {
 
   enemy.state = ENEMY_STATES.PURSUIT;
 
-  if (enemy.behavior === 'ranged' && seesPlayer && distance <= enemy.attackRange + (context.player.radius ?? 0)) {
-    enemy.facing = context.player.x >= enemy.x ? 1 : -1;
+  if (enemy.behavior === 'ranged' && seesTarget && distance <= enemy.attackRange + (target.radius ?? 0)) {
+    enemy.facing = target.x >= enemy.x ? 1 : -1;
     return;
   }
 
-  chase(enemy, dt, context, distance);
+  chase(enemy, dt, context, target, distance);
 }
 
-function planAttack(enemy, context, distance, seesPlayer) {
-  const { player } = context;
-  if (!seesPlayer) return null;
+function planAttack(enemy, context, target, distance, seesTarget) {
+  if (!seesTarget) return null;
 
   if (enemy.behavior === 'ranged') {
     const shield = enemy.abilities.find(
@@ -133,28 +163,27 @@ function planAttack(enemy, context, distance, seesPlayer) {
         ability.category !== 'buff' &&
         enemy.cooldowns.ready(cooldownKey(ability)) &&
         (enemy.mana ?? 0) >= (ability.manaCost ?? 0) &&
-        distance <= (ability.range ?? 0) + (player.radius ?? 0),
+        distance <= (ability.range ?? 0) + (target.radius ?? 0),
     );
     if (offensive) return { ability: offensive };
   }
 
-  const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (player.radius ?? 0);
+  const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (target.radius ?? 0);
   if (distance <= meleeReach) return { melee: true };
   return null;
 }
 
-function resolveAttack(enemy, context, distance, seesPlayer) {
-  const { player } = context;
-  if (!player?.alive) return;
+function resolveAttack(enemy, context, target, distance, seesTarget) {
+  if (!target?.alive) return;
 
   if (enemy.pendingAbility) {
     const ability = enemy.pendingAbility;
     enemy.pendingAbility = null;
-    const target = ability.target === 'enemy' ? player : null;
-    if (target && !seesPlayer) return;
-    if (target && distance > (ability.range ?? 0) + (player.radius ?? 0)) return;
+    const abilityTarget = ability.target === 'enemy' ? target : null;
+    if (abilityTarget && !seesTarget) return;
+    if (abilityTarget && distance > (ability.range ?? 0) + (target.radius ?? 0)) return;
     context.abilitySystem?.cast(enemy, ability, {
-      target,
+      target: abilityTarget,
       entities: context.entities,
       grid: context.grid,
       rng: context.rng,
@@ -164,11 +193,11 @@ function resolveAttack(enemy, context, distance, seesPlayer) {
     return;
   }
 
-  const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (player.radius ?? 0);
-  if (!seesPlayer || distance > meleeReach) return;
+  const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (target.radius ?? 0);
+  if (!seesTarget || distance > meleeReach) return;
 
-  const result = enemyMeleeStrike(enemy, player, context.rng);
-  context.onMeleeHit?.(enemy, player, result);
+  const result = enemyMeleeStrike(enemy, target, context.rng);
+  context.onMeleeHit?.(enemy, target, result);
 }
 
 export function enemyMeleeStrike(enemy, target, rng = null) {
@@ -189,21 +218,21 @@ export function enemyMeleeStrike(enemy, target, rng = null) {
   return { ok: true, hit: true, dodged: false, parried: false, rawDamage, damage: applied, killed: !target.alive };
 }
 
-function chase(enemy, dt, context, distance) {
-  const { player, grid } = context;
-  if (distance > 0.05) enemy.facing = player.x >= enemy.x ? 1 : -1;
+function chase(enemy, dt, context, target, distance) {
+  const { grid } = context;
+  if (distance > 0.05) enemy.facing = target.x >= enemy.x ? 1 : -1;
 
   if (enemy.pathTimer <= 0) {
     enemy.pathTimer = enemy.repathInterval;
-    const path = findPath(grid, enemy.x, enemy.y, player.x, player.y);
+    const path = findPath(grid, enemy.x, enemy.y, target.x, target.y);
     if (path) enemy.path = path;
   }
 
   advanceAlongPath(enemy, dt, grid);
 
-  if (enemy.path.length === 0 && hasLineOfSight(grid, enemy.x, enemy.y, player.x, player.y, SIGHT_RADIUS)) {
-    const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (player.radius ?? 0);
-    if (distance > meleeReach) directStep(enemy, player, dt, grid);
+  if (enemy.path.length === 0 && hasLineOfSight(grid, enemy.x, enemy.y, target.x, target.y, SIGHT_RADIUS)) {
+    const meleeReach = (enemy.weapon?.range ?? enemy.attackRange) + (target.radius ?? 0);
+    if (distance > meleeReach) directStep(enemy, target, dt, grid);
   }
 }
 

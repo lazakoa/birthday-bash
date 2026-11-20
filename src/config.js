@@ -13,7 +13,7 @@ export const CHARACTER = {
   baseHealth: 25,
   baseMana: 25,
   startingStatPoints: 10,
-  startingAbilityPoints: 1,
+  startingAbilityPoints: 2,
   statOrder: ['strength', 'intelligence', 'vitality', 'dexterity'],
   statNames: {
     strength: 'Strength',
@@ -113,6 +113,8 @@ export const ELEMENT_COLORS = {
   bone: [0.92, 0.9, 0.78, 1],
 };
 
+export const ELEMENTAL_INFUSION = ['fire', 'ice', 'lightning', 'wind', 'arcane'];
+
 export const ABILITIES = {
   wizard: [
     {
@@ -180,8 +182,8 @@ export const ABILITIES = {
         radius: 2.6,
         duration: 3,
         tickInterval: 0.35,
-        damagePerTick: 2,
-        bonusScaling: 0.15,
+        damagePerTick: 3,
+        bonusScaling: 0.2,
         pullSpeed: 2.5,
       },
     },
@@ -220,6 +222,7 @@ export const ABILITIES = {
         speed: 0,
         aggroRadius: 0,
         sprite: 'totem',
+        element: 'arcane',
       },
     },
     {
@@ -244,6 +247,7 @@ export const ABILITIES = {
         speed: 2.6,
         aggroRadius: 6,
         sprite: 'golem',
+        element: 'arcane',
       },
     },
   ],

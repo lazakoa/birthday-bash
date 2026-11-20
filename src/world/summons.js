@@ -1,3 +1,4 @@
+import { ELEMENTAL_INFUSION } from '../config.js';
 import { Entity } from './entity.js';
 import { moveCircle } from './grid.js';
 
@@ -44,6 +45,7 @@ export class Summon extends Entity {
     this.remaining = duration;
     this.maxDuration = duration;
     this.element = element;
+    this.infusions = 0;
     this.moveSpeedMultiplier = 1;
     this.facing = -1;
   }
@@ -66,6 +68,63 @@ export function createSummon(ability, caster, { x, y, damage }) {
     duration: def.duration ?? 10,
     element: def.element ?? null,
   });
+}
+
+export function infuseSummon(summon, element) {
+  if (!summon || summon.kind !== 'summon' || summon.type !== 'totem') return false;
+  if (!ELEMENTAL_INFUSION.includes(element)) return false;
+  summon.element = element;
+  summon.infusions += 1;
+  return true;
+}
+
+export function nearestHostile(entities, summon, maxDistance = Infinity) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const entity of entities) {
+    if (!entity || !entity.alive || entity === summon) continue;
+    if (entity.faction !== 'enemy') continue;
+    const distance = Math.hypot(entity.x - summon.x, entity.y - summon.y);
+    const reach = maxDistance + (entity.radius ?? 0);
+    if (distance > reach) continue;
+    if (distance < bestDistance) {
+      best = entity;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+export function updateSummon(
+  summon,
+  dt,
+  { entities = [], grid = null, onDamage = null, onBeam = null } = {},
+) {
+  if (!summon || summon.kind !== 'summon') return { removed: false, attacked: null };
+  if (!summon.alive) return { removed: true, reason: 'dead', attacked: null };
+
+  summon.remaining -= dt;
+  summon.attackTimer -= dt;
+  if (summon.remaining <= 0) return { removed: true, reason: 'expired', attacked: null };
+
+  const pursuitTarget = summon.speed > 0 ? nearestHostile(entities, summon, summon.aggroRadius) : null;
+  if (pursuitTarget) {
+    const distance = Math.hypot(pursuitTarget.x - summon.x, pursuitTarget.y - summon.y);
+    if (distance > summon.attackRange) moveSummonToward(summon, pursuitTarget, dt, grid);
+    summon.facing = pursuitTarget.x >= summon.x ? 1 : -1;
+  }
+
+  const attackTarget = nearestHostile(entities, summon, summon.attackRange);
+  if (attackTarget) summon.facing = attackTarget.x >= summon.x ? 1 : -1;
+
+  if (summon.attackTimer <= 0 && attackTarget) {
+    summon.attackTimer = summon.attackCooldown;
+    onBeam?.(summon, attackTarget, summon.element);
+    onDamage?.(attackTarget, summon.damage, { element: summon.element, source: summon });
+    return { removed: false, attacked: attackTarget };
+  }
+
+  return { removed: false, attacked: null };
 }
 
 export function moveSummonToward(summon, target, dt, grid) {

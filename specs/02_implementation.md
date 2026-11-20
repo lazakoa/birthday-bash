@@ -71,7 +71,7 @@ Use seeded random generation for dungeon generation and randomized combat behavi
 ### Work
 
 - Add class selection for Wizard and Warrior.
-- Create level-one characters with zero in every base stat, ten allocatable stat points, one ability point, 25 base health, and 25 base mana.
+- Create level-one characters with zero in every base stat, ten allocatable stat points, two ability points, 25 base health, and 25 base mana.
 - Add stat allocation and the provisional formulas for health, mana, regeneration, damage, defense, dodge, accuracy, and spell fumble.
 - Implement melee basic attacks using the Wizard's staff and Warrior's long sword.
 - Implement enemy targeting, attack range checks, hit resolution, damage, healing, mana use, death, and combat feedback.

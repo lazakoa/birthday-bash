@@ -2,6 +2,7 @@ import { rollSpellFumble } from './combat.js';
 import { abilityDamage, cooldownKey, validateAbilityCast } from './abilities.js';
 import { entitiesInRadius } from './area.js';
 import { moveCircle } from './grid.js';
+import { infuseSummon } from './summons.js';
 
 const MIN_STEP = 1e-6;
 
@@ -31,9 +32,16 @@ export class AbilitySystem {
     if (!check.ok) return check;
 
     const events = [];
-    const damageTarget =
+    const applyDamage =
       hooks.damage ?? ((entity, amount) => ({ applied: entity.takeDamage(amount), killed: !entity.alive }));
+    const damageTarget = (entity, amount, info = {}) => {
+      const result = applyDamage(entity, amount, { ...info, ability: info.ability ?? ability });
+      if (entity && info.ability?.element) infuseSummon(entity, info.ability.element);
+      else if (entity && ability.element) infuseSummon(entity, ability.element);
+      return result;
+    };
     const beam = hooks.beam ?? (() => {});
+    const explode = hooks.explosion ?? (() => {});
     const key = cooldownKey(ability);
     const manaCost = ability.manaCost ?? 0;
     const cooldown = ability.cooldown ?? 0;
@@ -94,9 +102,17 @@ export class AbilitySystem {
                 });
                 events.push({ type: 'hit', target: other, result: splash, splash: true });
               }
+              explode(entity.x, entity.y, explosionRadius, ability.element);
+              events.push({
+                type: 'explosion',
+                x: entity.x,
+                y: entity.y,
+                radius: explosionRadius,
+                element: ability.element,
+              });
             }
 
-            if (slow?.slowPercent) {
+            if (slow?.slowPercent && entity.alive) {
               this.applySlow(entity, slow.slowPercent, slow.slowDuration ?? 0);
             }
           },

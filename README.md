@@ -65,7 +65,7 @@ and `?panel=1` opens the character sheet.
 
 - Class selection for the Wizard and Warrior, including a stat-allocation screen with a live preview
   of every derived value.
-- Level-one characters begin with zero base stats, ten stat points, one ability point, 25 base health
+- Level-one characters begin with zero base stats, ten stat points, two ability points, 25 base health
   and 25 base mana. The Wizard uses an Apprentice Staff and the Warrior uses a Long Sword; both basic
   attacks are melee.
 - Centralized provisional formulas for health, mana, regeneration, melee and spell damage, defense,
@@ -129,7 +129,7 @@ and `?panel=1` opens the character sheet.
   validation, projectile splash, chain target limit, tornado pull, spin knockback, stun bounds, mana
   shield, rage buffs, ice slow, summons, rush and blood pickups.
 
-## Phase 5: enemy roster and floor population (current build)
+## Phase 5: enemy roster and floor population
 
 - Every generated floor is populated from a configurable spawn table in `src/config.js`. Room spawn
   chance, enemies per room, guaranteed types, placement spacing, and per-floor health, damage and
@@ -158,6 +158,42 @@ and `?panel=1` opens the character sheet.
 - `npm test` covers the roster, deterministic population, per-floor scaling, pursuit and melee
   attacks, line-of-sight attack blocking, archer projectiles, mage abilities, roaming and dead-enemy
   cleanup.
+
+## Phase 6: Wizard ability kit (current build)
+
+- Fireball impacts its target and explodes in a small radius, dealing full damage on impact and
+  reduced splash damage to nearby enemies.
+- Chain Lightning arcs from the selected target through up to five valid enemies without repeating
+  or striking dead targets.
+- Ice Spear slows its target by 35% for three seconds and restores movement speed when the effect
+  expires.
+- Tornado pulls enemies inside its radius toward the center while dealing heavy damage per tick for
+  its full duration.
+- Mana Shield converts incoming damage into mana at a one-to-one rate, then applies only the
+  unabsorbed remainder to health when mana runs out. Health and mana never go negative.
+- Summon Totem automatically attacks the nearest enemy in its radius. An elemental spell that
+  strikes the totem infuses its attacks with that element for the rest of its duration.
+- Summon Golem has high health and low damage, fights nearby enemies, and pulls enemy aggro from the
+  player while it lives. Golems and totems are removed on death or expiry.
+- Explosion bursts, mana-shield aura, elemental summon beams and cast feedback use the existing
+  rendering and combat systems. Death, floor regeneration and restart clear projectiles, areas,
+  timed effects and summons.
+
+### Phase 6 verification
+
+- Every Wizard ability unlocks, assigns to a hotkey, selects and casts repeatedly through the common
+  controls.
+- Fireball's impact and explosion radius hit only valid nearby enemies, and Chain Lightning stops at
+  five targets while ignoring dead enemies.
+- Ice Spear applies exactly a 35% slow and removes it on expiry.
+- Tornado pulls and damages only enemies within its radius.
+- Mana Shield consumes mana before health and clamps both resources at zero when depleted.
+- Totem attacks acquire valid targets, and elemental spells change its attack element while
+  non-elemental attacks leave it unchanged.
+- The Golem fights, draws enemy aggro, retargets enemies to the player after death, and is cleaned
+  up with other summons.
+- `npm test` covers the complete Wizard kit, including infusion, golem aggro, mana depletion, slow
+  expiry and summon cleanup.
 
 ## Layout
 
@@ -188,7 +224,7 @@ src/world/progression.js experience curve and level rewards
 src/world/combat.js      range checks, hit chance, parry, damage rolls, spell fumble
 src/world/abilities.js   ability definitions, lookup, validation, hotkeys and passives
 src/world/abilitySystem.js shared cast runtime for every ability category
-src/world/summons.js     totem/golem summons and movement
+src/world/summons.js     totem/golem stats, combat, movement and elemental infusion
 src/world/pickups.js     collectible crystallized blood
 src/world/enemies.js     enemy definitions, floor population and spawn tables
 src/world/enemyAI.js     enemy states, navigation, aggro, attacks and telegraphs

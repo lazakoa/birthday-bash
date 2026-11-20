@@ -84,6 +84,7 @@ export class Enemy extends Entity {
     this.windup = 0;
     this.pendingAbility = null;
     this.aggroed = false;
+    this.targetId = null;
     this.path = [];
     this.pathTimer = 0;
     this.repathInterval = REPATH_INTERVAL;

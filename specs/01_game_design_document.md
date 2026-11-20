@@ -67,7 +67,7 @@ New characters begin at level 1 with:
 
 - All four stats at 0.
 - Ten stat points to allocate.
-- One ability point to spend.
+- Two ability points to spend.
 - 25 base health.
 - 25 base mana.
 

@@ -18,7 +18,7 @@ import { Cooldowns, TimedEffectSystem } from '../world/effects.js';
 import { ProjectileSystem } from '../world/projectile.js';
 import { AreaEffectSystem } from '../world/area.js';
 import { AbilitySystem } from '../world/abilitySystem.js';
-import { createSummon, moveSummonToward } from '../world/summons.js';
+import { createSummon, updateSummon } from '../world/summons.js';
 import { PickupSystem } from '../world/pickups.js';
 import {
   hotkeySlotForCode,
@@ -756,6 +756,7 @@ export class Game {
         damage: (entity, amount) =>
           this.dealDamage(entity, amount, { color: this.abilityColor(ability), source: this.character }),
         beam: (from, to, element) => this.addBeam(from, to, element),
+        explosion: (x, y, radius, element) => this.addBurst(x, y, radius, element),
         summon: (abilityDef, caster, point) => this.spawnSummon(abilityDef, point),
       },
     });
@@ -912,6 +913,7 @@ export class Game {
             source: info.source ?? null,
           }),
         beam: (from, to, element) => this.addBeam(from, to, element),
+        explosion: (x, y, radius, element) => this.addBurst(x, y, radius, element),
       },
       onMeleeHit: (enemy, target, result) => this.onEnemyMeleeHit(enemy, target, result),
     };
@@ -929,62 +931,44 @@ export class Game {
 
   onEnemyMeleeHit(enemy, target, result) {
     const center = tileToWorld(target.x, target.y);
+    const targetName = target.className ?? target.name ?? 'target';
     if (result.parried) {
       this.hud.addFloat(center.x, center.y - 30, 'parry', '#f3d68a');
-      this.hud.addLog(`${target.className} parries ${enemy.name}.`, '#f3d68a');
+      this.hud.addLog(`${targetName} parries ${enemy.name}.`, '#f3d68a');
       return;
     }
     if (!result.hit) {
       this.hud.addFloat(center.x, center.y - 30, 'dodge', '#9fd8ff');
-      this.hud.addLog(`${target.className} dodges ${enemy.name}.`, '#9fd8ff');
+      this.hud.addLog(`${targetName} dodges ${enemy.name}.`, '#9fd8ff');
       return;
     }
     if (result.damage > 0) {
       this.hud.addFloat(center.x, center.y - 30, `-${Math.max(1, Math.round(result.damage))}`, '#ff9b9b');
-      this.hud.addLog(`${enemy.name} hits ${target.className} for ${Math.max(1, Math.round(result.damage))}.`, '#ffb0b0');
+      this.hud.addLog(`${enemy.name} hits ${targetName} for ${Math.max(1, Math.round(result.damage))}.`, '#ffb0b0');
+    }
+    if (!target.alive && target.kind === 'summon') {
+      this.entities.remove(target);
+      this.hud.addLog(`${target.name} crumbles.`, '#9fb0d0');
     }
   }
 
   updateSummons(dt) {
     for (const summon of [...this.entities.items]) {
       if (summon.kind !== 'summon' || summon.faction !== 'ally') continue;
-      if (!summon.alive) {
-        this.entities.remove(summon);
-        continue;
-      }
-
-      summon.remaining -= dt;
-      summon.attackTimer -= dt;
-      if (summon.remaining <= 0) {
-        const center = tileToWorld(summon.x, summon.y);
-        this.hud.addFloat(center.x, center.y - 30, 'fades', '#9fb0d0');
-        this.entities.remove(summon);
-        continue;
-      }
-
-      if (summon.speed > 0) {
-        const enemy = this.entities.nearest(summon.x, summon.y, {
-          faction: 'enemy',
-          maxDistance: summon.aggroRadius,
-        });
-        if (enemy) {
-          const distance = Math.hypot(enemy.x - summon.x, enemy.y - summon.y);
-          if (distance > summon.attackRange) moveSummonToward(summon, enemy, dt, this.grid);
-          summon.facing = enemy.x >= summon.x ? 1 : -1;
-        }
-      }
-
-      if (summon.attackTimer <= 0) {
-        const target = this.entities.nearest(summon.x, summon.y, {
-          faction: 'enemy',
-          maxDistance: summon.attackRange,
-        });
-        if (target) {
-          summon.attackTimer = summon.attackCooldown;
-          this.addBeam(summon, target, summon.element);
-          this.dealDamage(target, summon.damage, { color: '#b39cff', source: summon });
-        }
-      }
+      const outcome = updateSummon(summon, dt, {
+        entities: this.entities.items,
+        grid: this.grid,
+        onBeam: (from, to, element) => this.addBeam(from, to, element),
+        onDamage: (target, amount) =>
+          this.dealDamage(target, amount, {
+            color: this.elementColor(summon.element),
+            source: summon,
+          }),
+      });
+      if (!outcome.removed) continue;
+      const center = tileToWorld(summon.x, summon.y);
+      this.hud.addFloat(center.x, center.y - 30, outcome.reason === 'dead' ? 'crumbles' : 'fades', '#9fb0d0');
+      this.entities.remove(summon);
     }
   }
 
@@ -1011,6 +995,18 @@ export class Game {
     });
   }
 
+  addBurst(x, y, radius, element = null) {
+    this.visuals.push({
+      type: 'burst',
+      x,
+      y,
+      radius,
+      ttl: 0.32,
+      maxTtl: 0.32,
+      color: ELEMENT_COLORS[element] ?? ELEMENT_COLORS.arcane,
+    });
+  }
+
   updateVisuals(dt) {
     for (const visual of this.visuals) visual.ttl -= dt;
     this.visuals = this.visuals.filter((visual) => visual.ttl > 0);
@@ -1023,6 +1019,11 @@ export class Game {
     this.player.clearPath();
     this.clearTarget();
     this.character.resetSelection();
+    for (const summon of this.entities.byFaction('ally')) this.entities.remove(summon);
+    this.projectiles.clear();
+    this.areas.clear();
+    this.clearTimedEffects();
+    this.visuals.length = 0;
     this.abilityBar.setVisible(false);
     this.abilityPanel.hide();
     this.hud.addLog(`${this.character.className} has fallen.`, '#ff9b9b');
@@ -1244,8 +1245,29 @@ export class Game {
         }
       } else {
         const bob = item.moving ? Math.sin(performance.now() / 70) * 1.5 : 0;
+        if (this.character?.hasBuff?.('manaShield')) {
+          renderer.draw('highlight', feet.x, feet.y, { scale: 0.72, tint: [0.62, 0.5, 1, 0.38] });
+        }
         renderer.draw('shadow', feet.x, feet.y, { tint: [1, 1, 1, 1] });
         renderer.draw(this.player.sprite ?? 'wizard', feet.x, feet.y + bob, { flipX: item.facing < 0 });
+      }
+    }
+
+    for (const visual of this.visuals) {
+      if (visual.type !== 'burst') continue;
+      const center = tileToWorld(visual.x, visual.y);
+      const life = Math.max(0, visual.ttl / visual.maxTtl);
+      const scale = visual.radius * (1.35 - 0.45 * life);
+      renderer.draw('highlight', center.x, center.y, {
+        scale,
+        tint: [visual.color[0], visual.color[1], visual.color[2], 0.45 * life],
+      });
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        renderer.draw('spark', center.x + Math.cos(angle) * scale * 24, center.y - 12 + Math.sin(angle) * scale * 12, {
+          scale: 3 * life + 1,
+          tint: [visual.color[0], visual.color[1], visual.color[2], 0.9 * life],
+        });
       }
     }
 

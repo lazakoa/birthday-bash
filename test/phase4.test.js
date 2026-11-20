@@ -84,7 +84,7 @@ test('leveling grants points without losing stats or unlocked abilities', () => 
   assert.equal(character.level, 2);
   assert.equal(character.experience, 0);
   assert.equal(character.statPoints, CHARACTER.startingStatPoints - 2 + PROGRESSION.statPointsPerLevel);
-  assert.equal(character.abilityPoints, PROGRESSION.abilityPointsPerLevel);
+  assert.equal(character.abilityPoints, CHARACTER.startingAbilityPoints - 1 + PROGRESSION.abilityPointsPerLevel);
   assert.deepEqual(character.stats, statsBefore);
   assert.equal(character.hasAbility('fireball'), true);
   assert.equal(character.hotbar[0], 'basicAttack');
@@ -109,7 +109,7 @@ test('every class ability can be unlocked without another ability', () => {
   for (const classId of ['wizard', 'warrior']) {
     for (const ability of abilitiesForClass(classId)) {
       const character = new Character(classId);
-      assert.equal(character.abilityPoints, 1);
+      assert.equal(character.abilityPoints, CHARACTER.startingAbilityPoints);
       assert.equal(character.unlockAbility(ability.id), true, `${classId}: ${ability.id}`);
       assert.equal(character.hasAbility(ability.id), true);
       assert.equal(character.unlockAbility(ability.id), false, `${classId}: ${ability.id} cannot be unlocked twice`);
@@ -121,7 +121,8 @@ test('every class ability can be unlocked without another ability', () => {
 test('ability unlocks spend exactly one point and reject unknown abilities', () => {
   const character = new Character('warrior');
   assert.equal(character.unlockAbility('meteor'), false);
-  assert.equal(character.abilityPoints, 1);
+  assert.equal(character.abilityPoints, CHARACTER.startingAbilityPoints);
+  character.abilityPoints = 1;
   assert.equal(character.unlockAbility('bash'), true);
   assert.equal(character.abilityPoints, 0);
   assert.equal(character.unlockAbility('spinBlade'), false);
