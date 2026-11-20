@@ -1,0 +1,14 @@
+{
+  "name": "birthday-bash",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Birthday Bash - isometric dungeon crawler rendered with raw WebGL",
+  "scripts": {
+    "dev": "node tools/dev-server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

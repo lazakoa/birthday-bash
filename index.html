@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Birthday Bash</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <canvas id="game" tabindex="0"></canvas>
+    <div id="hud" aria-live="off">
+      <div id="hud-debug"></div>
+      <div id="hud-status" hidden>
+        <div id="status-name">Wizard · Lv 1</div>
+        <div class="stat-bar health">
+          <div class="stat-fill" id="bar-health"></div>
+          <span class="stat-label" id="label-health">25 / 25</span>
+        </div>
+        <div class="stat-bar mana">
+          <div class="stat-fill" id="bar-mana"></div>
+          <span class="stat-label" id="label-mana">25 / 25</span>
+        </div>
+        <div class="stat-bar xp">
+          <div class="stat-fill" id="bar-xp"></div>
+          <span class="stat-label" id="label-xp">XP 0</span>
+        </div>
+        <div id="status-extra"></div>
+        <button id="character-button" type="button">Character &amp; Abilities (k / c)</button>
+      </div>
+      <div id="hud-target" hidden>
+        <div id="target-name">Target</div>
+        <div class="stat-bar enemy">
+          <div class="stat-fill" id="bar-target"></div>
+          <span class="stat-label" id="label-target"></span>
+        </div>
+      </div>
+      <div id="hud-log"></div>
+      <div id="combat-layer"></div>
+      <div id="ability-bar" hidden></div>
+      <div id="hud-help">
+        <strong>Birthday Bash</strong> &mdash; Phase 4 progression and abilities<br />
+        Right-click: move &nbsp;|&nbsp; Left-click enemy: attack &nbsp;|&nbsp; 1-0: select ability &nbsp;|&nbsp;
+        Left-click: cast selected ability &nbsp;|&nbsp; Esc: back to basic attack<br />
+        k / c: abilities and stats &nbsp;|&nbsp; R: new floor &nbsp;|&nbsp; Shift+R: same floor &nbsp;|&nbsp; S: stairs<br />
+        Debug: H heals, M restores mana, T targets the nearest enemy
+      </div>
+    </div>
+    <div id="ability-panel" hidden>
+      <div class="ability-panel-inner">
+        <header class="ability-panel-header">
+          <h2>Character &amp; Abilities</h2>
+          <button id="ability-close" type="button">Close (Esc)</button>
+        </header>
+        <div id="ability-summary"></div>
+        <div class="ability-panel-body">
+          <section class="ability-panel-stats">
+            <h3>Stats</h3>
+            <div id="ability-stat-rows"></div>
+          </section>
+          <section class="ability-panel-list">
+            <h3>Abilities</h3>
+            <div id="ability-list"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div id="create" hidden>
+      <div class="create-panel">
+        <h1>Birthday Bash</h1>
+        <p class="create-sub">Choose a class, allocate your ten starting stat points, then enter the Lich's Den.</p>
+        <div id="create-classes"></div>
+        <div id="create-stats" hidden>
+          <div class="create-points">
+            Stat points: <strong id="create-points">10</strong> &nbsp;·&nbsp;
+            Ability points: <strong id="create-ability">1</strong>
+          </div>
+          <div id="create-stat-rows"></div>
+          <div id="create-preview"></div>
+          <button id="create-start" type="button" disabled>Enter the dungeon</button>
+        </div>
+      </div>
+    </div>
+    <div id="overlay" hidden></div>
+    <noscript>This game requires JavaScript.</noscript>
+    <script>
+      window.__bbErrors = [];
+      var bbOriginalConsoleError = console.error.bind(console);
+      console.error = function () {
+        window.__bbErrors.push(Array.prototype.join.call(arguments, ' '));
+        bbOriginalConsoleError.apply(null, arguments);
+      };
+      window.addEventListener('error', function (event) {
+        window.__bbErrors.push(event.message || 'unknown error');
+        var overlay = document.getElementById('overlay');
+        if (!overlay || !overlay.hidden) return;
+        overlay.textContent = 'Unexpected error:\n\n' + (event.message || 'unknown error');
+        overlay.hidden = false;
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        window.__bbErrors.push('unhandled rejection: ' + String(event.reason));
+        var overlay = document.getElementById('overlay');
+        if (!overlay || !overlay.hidden) return;
+        overlay.textContent = 'Unhandled rejection:\n\n' + String(event.reason);
+        overlay.hidden = false;
+      });
+      if (window.location.search.indexOf('screenshot') !== -1) {
+        var bbHold = new Image();
+        var bbParams = new URLSearchParams(window.location.search);
+        bbHold.src = '/__slow?ms=' + (bbParams.get('hold') || 2000);
+        bbHold.style.cssText = 'position:absolute;left:-10px;top:-10px;width:1px;height:1px;opacity:0.01';
+        document.body.appendChild(bbHold);
+      }
+    </script>
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
