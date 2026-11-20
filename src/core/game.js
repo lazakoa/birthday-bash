@@ -11,7 +11,8 @@ import { findPath, nearestWalkableTile, smoothPath } from '../world/pathfinding.
 import { nextSeed, randomSeed, Rng } from '../world/rng.js';
 import { EntityStore } from '../world/entity.js';
 import { Character } from '../world/character.js';
-import { spawnTrainingDummies } from '../world/enemies.js';
+import { spawnFloorEnemies } from '../world/enemies.js';
+import { updateEnemy } from '../world/enemyAI.js';
 import { inAttackRange, resolveMeleeAttack } from '../world/combat.js';
 import { Cooldowns, TimedEffectSystem } from '../world/effects.js';
 import { ProjectileSystem } from '../world/projectile.js';
@@ -304,15 +305,21 @@ export class Game {
     this.attackTargetId = null;
     this.chaseTimer = 0;
     this.pathPoints = [];
+    this.clearTimedEffects();
     this.cooldowns.clear();
     this.projectiles.clear();
     this.areas.clear();
     this.pickups.clear();
     this.visuals.length = 0;
     this.entities.clear();
-    for (const enemy of spawnTrainingDummies(floor)) this.entities.add(enemy);
+    for (const enemy of spawnFloorEnemies(floor, this.floorNumber)) this.entities.add(enemy);
     this.combatRng = new Rng((this.seed ^ 0x7f4a7c15) >>> 0);
     this.updateHud();
+  }
+
+  clearTimedEffects() {
+    for (const effect of [...this.effects.items]) effect.onExpire?.(effect);
+    this.effects.clear();
   }
 
   attachLifecycle() {
@@ -417,6 +424,7 @@ export class Game {
     this.effects.update(dt);
     this.player.update(this.grid, dt);
     this.entities.update(dt);
+    this.updateEnemies(dt);
     this.projectiles.update(dt, { grid: this.grid, entities: this.entities.all });
     this.areas.update(dt, { grid: this.grid, entities: this.entities.all });
     this.updateSummons(dt);
@@ -681,6 +689,7 @@ export class Game {
     this.hud.addFloat(center.x, center.y - 30, `-${Math.max(1, Math.round(applied))}`, killed ? '#ffe08a' : color);
 
     if (killed && target.faction === 'enemy') this.onEnemyKilled(target);
+    else if (killed && target.kind === 'summon') this.entities.remove(target);
     return { applied, killed };
   }
 
@@ -791,7 +800,11 @@ export class Game {
   }
 
   abilityColor(ability) {
-    const color = ELEMENT_COLORS[ability.element] ?? [1, 1, 1, 1];
+    return this.elementColor(ability.element);
+  }
+
+  elementColor(element) {
+    const color = ELEMENT_COLORS[element] ?? [1, 1, 1, 1];
     return `rgb(${Math.round(color[0] * 255)}, ${Math.round(color[1] * 255)}, ${Math.round(color[2] * 255)})`;
   }
 
@@ -882,6 +895,54 @@ export class Game {
       }
     }
     return { x: origin.x, y: origin.y };
+  }
+
+  updateEnemies(dt) {
+    if (!this.character || !this.grid) return;
+    const context = {
+      player: this.character,
+      entities: this.entities.all,
+      grid: this.grid,
+      rng: this.combatRng,
+      abilitySystem: this.abilities,
+      hooks: {
+        damage: (entity, amount, info = {}) =>
+          this.dealDamage(entity, amount, {
+            color: this.elementColor(info.element),
+            source: info.source ?? null,
+          }),
+        beam: (from, to, element) => this.addBeam(from, to, element),
+      },
+      onMeleeHit: (enemy, target, result) => this.onEnemyMeleeHit(enemy, target, result),
+    };
+
+    for (const enemy of [...this.entities.items]) {
+      if (enemy.kind !== 'enemy') continue;
+      if (!enemy.alive) {
+        this.entities.remove(enemy);
+        if (this.attackTargetId === enemy.id) this.clearTarget();
+        continue;
+      }
+      updateEnemy(enemy, dt, context);
+    }
+  }
+
+  onEnemyMeleeHit(enemy, target, result) {
+    const center = tileToWorld(target.x, target.y);
+    if (result.parried) {
+      this.hud.addFloat(center.x, center.y - 30, 'parry', '#f3d68a');
+      this.hud.addLog(`${target.className} parries ${enemy.name}.`, '#f3d68a');
+      return;
+    }
+    if (!result.hit) {
+      this.hud.addFloat(center.x, center.y - 30, 'dodge', '#9fd8ff');
+      this.hud.addLog(`${target.className} dodges ${enemy.name}.`, '#9fd8ff');
+      return;
+    }
+    if (result.damage > 0) {
+      this.hud.addFloat(center.x, center.y - 30, `-${Math.max(1, Math.round(result.damage))}`, '#ff9b9b');
+      this.hud.addLog(`${enemy.name} hits ${target.className} for ${Math.max(1, Math.round(result.damage))}.`, '#ffb0b0');
+    }
   }
 
   updateSummons(dt) {
@@ -1158,6 +1219,13 @@ export class Game {
         renderer.draw('wall', item.x, item.y);
       } else if (item.kind === 'enemy') {
         const { enemy, center } = item;
+        if (enemy.windup > 0 && enemy.windupTime > 0) {
+          const charge = Math.max(0, Math.min(1, 1 - enemy.windup / enemy.windupTime));
+          renderer.draw('highlight', center.x, center.y, {
+            scale: 0.55 + charge * 0.45,
+            tint: [1, 0.3, 0.24, 0.35 + charge * 0.5],
+          });
+        }
         renderer.draw('shadow', center.x, center.y, { scale: 0.8 });
         renderer.draw(enemy.sprite, center.x, center.y, { flipX: enemy.facing < 0 });
         const width = 28;
@@ -1278,6 +1346,7 @@ export class Game {
         }))
       : [];
 
+    const enemies = this.entities.byFaction('enemy');
     this.debugElement.textContent = [
       `fps ${this.fps.toFixed(0)}   sprites ${this.renderer.spriteCount}   dpr ${this.view.dpr}`,
       `canvas ${this.view.width}x${this.view.height} (css ${this.view.cssWidth}x${this.view.cssHeight})`,
@@ -1294,7 +1363,8 @@ export class Game {
         ? `player ${this.player.x.toFixed(2)}, ${this.player.y.toFixed(2)}   dest ${dest}`
         : '',
       this.floor ? `stairs ${this.floor.stairs.x.toFixed(1)}, ${this.floor.stairs.y.toFixed(1)}` : '',
-      `target ${targetText}   enemies ${this.entities.byFaction('enemy').length}   ` +
+      `target ${targetText}   enemies ${enemies.length}   ` +
+        `aggro ${enemies.filter((enemy) => enemy.aggroed).length}   ` +
         `summons ${this.entities.byFaction('ally').length}   pickups ${this.pickups.size}`,
       `cast ${selectedAbility ? selectedAbility.name : 'basic attack'}   ` +
         `hotbar ${character ? character.hotbar.map((id) => id ?? '-').join(',') : 'n/a'}`,

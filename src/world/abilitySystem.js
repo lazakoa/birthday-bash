@@ -13,13 +13,21 @@ export class AbilitySystem {
     this.cooldowns = cooldowns;
   }
 
-  canCast(caster, ability, { target = null, point = null } = {}) {
-    return validateAbilityCast({ caster, ability, target, point, cooldowns: this.cooldowns });
+  canCast(caster, ability, { target = null, point = null, cooldowns = this.cooldowns } = {}) {
+    return validateAbilityCast({ caster, ability, target, point, cooldowns });
   }
 
   cast(caster, ability, options = {}) {
-    const { target = null, point = null, entities = [], grid = null, rng = null, hooks = {} } = options;
-    const check = this.canCast(caster, ability, { target, point });
+    const {
+      target = null,
+      point = null,
+      entities = [],
+      grid = null,
+      rng = null,
+      hooks = {},
+      cooldowns = this.cooldowns,
+    } = options;
+    const check = this.canCast(caster, ability, { target, point, cooldowns });
     if (!check.ok) return check;
 
     const events = [];
@@ -32,12 +40,12 @@ export class AbilitySystem {
 
     if (ability.damageStat === 'spell' && rng && rollSpellFumble(caster, rng)) {
       caster.spendMana(manaCost);
-      this.cooldowns.start(key, cooldown);
+      cooldowns.start(key, cooldown);
       return { ok: true, fumbled: true, damage: 0, events };
     }
 
     if (!caster.spendMana(manaCost)) return { ok: false, reason: 'mana' };
-    this.cooldowns.start(key, cooldown);
+    cooldowns.start(key, cooldown);
 
     const damage = abilityDamage(caster, ability, rng);
     if (target && ability.target === 'enemy') caster.facing = target.x >= caster.x ? 1 : -1;

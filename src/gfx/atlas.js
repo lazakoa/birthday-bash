@@ -1,6 +1,6 @@
 import { TILE_WIDTH, TILE_HEIGHT } from './iso.js';
 
-export const ATLAS_SIZE = 256;
+export const ATLAS_SIZE = 512;
 
 const cell = (x, y, w, h, ax, ay) => ({ x, y, w, h, ax, ay });
 
@@ -20,6 +20,12 @@ export const SPRITE_DEFS = {
   golem: cell(64, 192, 64, 64, 32, 56),
   blood: cell(128, 192, 32, 32, 16, 24),
   spark: cell(160, 192, 2, 2, 0, 2),
+  skeleton: cell(0, 256, 64, 64, 32, 56),
+  skeletonArcher: cell(64, 256, 64, 64, 32, 56),
+  skeletonMage: cell(128, 256, 64, 64, 32, 56),
+  zombie: cell(192, 256, 64, 64, 32, 56),
+  bat: cell(256, 256, 64, 64, 32, 56),
+  vampire: cell(320, 256, 64, 64, 32, 56),
 };
 
 const COLORS = {
@@ -41,6 +47,14 @@ const COLORS = {
   leather: '#8a5a34',
   cloth: '#8f3b3b',
   straw: '#c9b26a',
+  bone: '#d9d2c2',
+  boneDark: '#8f897a',
+  rot: '#6f8f4f',
+  rotDark: '#475f31',
+  bat: '#3b2f45',
+  batWing: '#2a2133',
+  vampCape: '#4a1f33',
+  vampSkin: '#e6dce8',
 };
 
 function poly(g, points, fill, stroke, close = true) {
@@ -328,6 +342,181 @@ function drawSpark(g, ox, oy) {
   g.fillRect(ox, oy, 2, 2);
 }
 
+function drawBoneFigure(g, cx, oy, { robe = false, bow = false, staff = false } = {}) {
+  const feet = oy + 56;
+  if (robe) {
+    poly(g, [[cx - 12, oy + 28], [cx + 12, oy + 28], [cx + 16, feet], [cx - 16, feet]], '#3c3550', '#211c2e');
+    poly(g, [[cx - 9, oy + 14], [cx + 9, oy + 14], [cx + 4, oy + 26], [cx - 4, oy + 26]], '#4b4266');
+  } else {
+    g.strokeStyle = COLORS.bone;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(cx - 4, oy + 38);
+    g.lineTo(cx - 6, feet);
+    g.moveTo(cx + 4, oy + 38);
+    g.lineTo(cx + 6, feet);
+    g.stroke();
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(cx - 10, oy + 40);
+    g.lineTo(cx + 10, oy + 40);
+    g.stroke();
+  }
+
+  g.fillStyle = COLORS.bone;
+  g.fillRect(cx - 8, oy + 26, 16, 12);
+  g.strokeStyle = COLORS.boneDark;
+  g.lineWidth = 1;
+  g.beginPath();
+  for (let i = 0; i < 3; i++) {
+    g.moveTo(cx - 7, oy + 29 + i * 3);
+    g.lineTo(cx + 7, oy + 29 + i * 3);
+  }
+  g.stroke();
+
+  g.fillStyle = COLORS.bone;
+  g.beginPath();
+  g.arc(cx, oy + 17, 8, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#1a1510';
+  g.beginPath();
+  g.arc(cx - 3, oy + 16, 2, 0, Math.PI * 2);
+  g.arc(cx + 3, oy + 16, 2, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(cx - 2, oy + 23, 4, 2);
+
+  if (bow) {
+    g.strokeStyle = '#8a5a34';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(cx + 14, oy + 34, 11, -Math.PI * 0.55, Math.PI * 0.55);
+    g.stroke();
+    g.strokeStyle = 'rgba(230, 230, 220, 0.7)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(cx + 17, oy + 25);
+    g.lineTo(cx + 17, oy + 43);
+    g.stroke();
+  } else if (staff) {
+    g.strokeStyle = COLORS.wood;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(cx + 14, feet);
+    g.lineTo(cx + 14, oy + 14);
+    g.stroke();
+    g.fillStyle = '#c39bff';
+    g.beginPath();
+    g.arc(cx + 14, oy + 12, 4, 0, Math.PI * 2);
+    g.fill();
+  } else {
+    g.strokeStyle = COLORS.steelDark;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(cx + 12, feet);
+    g.lineTo(cx + 14, oy + 20);
+    g.stroke();
+  }
+}
+
+function drawSkeleton(g, ox, oy) {
+  const cx = ox + 32;
+  drawBoneFigure(g, cx, oy);
+}
+
+function drawSkeletonArcher(g, ox, oy) {
+  const cx = ox + 32;
+  drawBoneFigure(g, cx, oy, { bow: true });
+}
+
+function drawSkeletonMage(g, ox, oy) {
+  const cx = ox + 32;
+  drawBoneFigure(g, cx, oy, { robe: true, staff: true });
+}
+
+function drawZombie(g, ox, oy) {
+  const cx = ox + 32;
+  const feet = oy + 56;
+  poly(g, [[cx - 11, oy + 30], [cx + 11, oy + 30], [cx + 13, feet], [cx - 13, feet]], COLORS.rotDark, '#2f4022');
+  g.strokeStyle = COLORS.rot;
+  g.lineWidth = 4;
+  g.beginPath();
+  g.moveTo(cx - 10, oy + 32);
+  g.lineTo(cx - 18, oy + 44);
+  g.moveTo(cx + 10, oy + 32);
+  g.lineTo(cx + 18, oy + 40);
+  g.stroke();
+  g.fillStyle = COLORS.rot;
+  g.beginPath();
+  g.arc(cx, oy + 20, 8, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#d8e8a8';
+  g.fillRect(cx - 5, oy + 18, 3, 3);
+  g.fillRect(cx + 2, oy + 18, 3, 3);
+  g.fillStyle = '#2b2016';
+  g.fillRect(cx - 4, oy + 24, 8, 2);
+  g.fillStyle = '#5d3a3a';
+  g.fillRect(cx - 6, oy + 34, 5, 8);
+}
+
+function drawBat(g, ox, oy) {
+  const cx = ox + 32;
+  const cy = oy + 34;
+  g.fillStyle = COLORS.batWing;
+  poly(g, [[cx - 2, cy], [cx - 22, cy - 8], [cx - 18, cy + 4], [cx - 8, cy + 6]], COLORS.batWing);
+  poly(g, [[cx + 2, cy], [cx + 22, cy - 8], [cx + 18, cy + 4], [cx + 8, cy + 6]], COLORS.batWing);
+  g.fillStyle = COLORS.bat;
+  g.beginPath();
+  g.ellipse(cx, cy, 7, 9, 0, 0, Math.PI * 2);
+  g.fill();
+  g.beginPath();
+  g.moveTo(cx - 6, cy - 7);
+  g.lineTo(cx - 2, cy - 14);
+  g.lineTo(cx, cy - 7);
+  g.moveTo(cx + 6, cy - 7);
+  g.lineTo(cx + 2, cy - 14);
+  g.lineTo(cx, cy - 7);
+  g.fill();
+  g.fillStyle = '#ff5b6e';
+  g.fillRect(cx - 4, cy - 3, 2, 2);
+  g.fillRect(cx + 2, cy - 3, 2, 2);
+}
+
+function drawVampire(g, ox, oy) {
+  const cx = ox + 32;
+  const feet = oy + 56;
+  poly(g, [[cx - 14, oy + 26], [cx + 14, oy + 26], [cx + 20, feet], [cx - 20, feet]], COLORS.vampCape, '#2a101b');
+  g.fillStyle = '#2a101b';
+  g.fillRect(cx - 3, oy + 30, 6, feet - (oy + 30));
+  g.fillStyle = COLORS.vampSkin;
+  g.beginPath();
+  g.arc(cx, oy + 18, 8, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#1c1018';
+  g.beginPath();
+  g.arc(cx, oy + 14, 8, Math.PI, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#ff4a66';
+  g.fillRect(cx - 4, oy + 17, 2, 2);
+  g.fillRect(cx + 2, oy + 17, 2, 2);
+  g.fillStyle = '#ffffff';
+  g.fillRect(cx - 3, oy + 22, 2, 3);
+  g.fillRect(cx + 1, oy + 22, 2, 3);
+  g.strokeStyle = COLORS.vampSkin;
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(cx - 12, oy + 30);
+  g.lineTo(cx - 20, oy + 40);
+  g.moveTo(cx + 12, oy + 30);
+  g.lineTo(cx + 20, oy + 40);
+  g.stroke();
+  g.fillStyle = '#c9d6ff';
+  g.beginPath();
+  g.arc(cx - 20, oy + 42, 2, 0, Math.PI * 2);
+  g.arc(cx + 20, oy + 42, 2, 0, Math.PI * 2);
+  g.fill();
+}
+
+
 export function buildAtlasCanvas() {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_SIZE;
@@ -351,6 +540,12 @@ export function buildAtlasCanvas() {
   drawGolem(g, 64, 192);
   drawBlood(g, 128, 192);
   drawSpark(g, 160, 192);
+  drawSkeleton(g, 0, 256);
+  drawSkeletonArcher(g, 64, 256);
+  drawSkeletonMage(g, 128, 256);
+  drawZombie(g, 192, 256);
+  drawBat(g, 256, 256);
+  drawVampire(g, 320, 256);
 
   return canvas;
 }

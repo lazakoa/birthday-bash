@@ -77,7 +77,8 @@ and `?panel=1` opens the character sheet.
   effects (additive stacking) and cooldowns, ready for the ability and enemy phases.
 - Combat HUD with class, level, health, mana, experience, stat points, ability points and a target
   frame, plus floating damage text and a combat log.
-- Three training dummies spawn near the spawn room of every generated floor for combat testing.
+- Training dummy support remains in the simulation for combat tests; generated floors use the Phase 5
+  enemy population.
 - Death shows a restart prompt; Enter returns to a fresh level-one character and dungeon.
 
 ### Phase 3 verification
@@ -92,7 +93,7 @@ and `?panel=1` opens the character sheet.
 - The HUD reports the class, level, health, mana, experience and target, and the console error count
   stays at 0.
 
-## Phase 4: progression and abilities (current build)
+## Phase 4: progression and abilities
 
 - Experience progression uses `floor(50 * 1.09^(L - 1))` per level; overflow carries into the next
   level. Each level grants five stat points and one ability point without resetting allocated stats,
@@ -128,13 +129,43 @@ and `?panel=1` opens the character sheet.
   validation, projectile splash, chain target limit, tornado pull, spin knockback, stun bounds, mana
   shield, rage buffs, ice slow, summons, rush and blood pickups.
 
+## Phase 5: enemy roster and floor population (current build)
+
+- Every generated floor is populated from a configurable spawn table in `src/config.js`. Room spawn
+  chance, enemies per room, guaranteed types, placement spacing, and per-floor health, damage and
+  experience scaling are all centralized there.
+- Six regular enemy types spawn through the shared enemy runtime: Skeletons and Zombies pursue and
+  melee, Skeleton Archers fire bone-arrow projectiles at range, Skeleton Mages cast Fireball and
+  Mana Shield through the shared ability system, Bats are fast erratic melee enemies, and Vampires
+  are durable roamers that wander the dungeon.
+- Enemies share idle, wander, aggro, pursuit, attack and death states. Aggro uses an aggro radius and
+  line of sight, combat uses A* navigation with wall sliding and a leash back to the spawn room, and
+  attacks require line of sight so enemies cannot strike through walls.
+- Melee and ranged attacks use a windup telegraph rendered under the enemy. Projectiles, enemy damage
+  and player damage feedback reuse the existing combat, projectile, area, effect and cooldown systems.
+- Floor transitions, regeneration and restart clear enemies, projectiles, areas and timed effects;
+  enemy deaths award their configured experience exactly once and remove the enemy immediately.
+
+### Phase 5 verification
+
+- All six enemy types spawn on walkable tiles, and the same seed and floor reproduce the same
+  population.
+- Skeletons and Zombies aggro, path around walls, wind up and damage the player; Bats move faster.
+- Skeleton Archers hold range and fire projectiles; Skeleton Mages raise Mana Shield and cast
+  Fireball; Vampires wander when no player is nearby.
+- Enemies cannot attack through walls, dead enemies stop acting, and killed enemies grant experience
+  once.
+- `npm test` covers the roster, deterministic population, per-floor scaling, pursuit and melee
+  attacks, line-of-sight attack blocking, archer projectiles, mage abilities, roaming and dead-enemy
+  cleanup.
+
 ## Layout
 
 ```
 index.html               page shell, HUD, ability bar, character sheet, early error capture
 styles.css               HUD, ability bar/sheet, combat feedback and creation styling
 src/main.js              bootstrap
-src/config.js            renderer, character, class, formula, progression and ability tuning
+src/config.js            renderer, character, class, formula, progression, ability and enemy tuning
 src/core/loop.js         fixed-step game loop with accumulator
 src/core/input.js        mouse/keyboard, canvas-relative coordinates
 src/core/game.js         game states, character creation, update/render orchestration, HUD
@@ -159,7 +190,8 @@ src/world/abilities.js   ability definitions, lookup, validation, hotkeys and pa
 src/world/abilitySystem.js shared cast runtime for every ability category
 src/world/summons.js     totem/golem summons and movement
 src/world/pickups.js     collectible crystallized blood
-src/world/enemies.js     placeholder enemy types and floor population
+src/world/enemies.js     enemy definitions, floor population and spawn tables
+src/world/enemyAI.js     enemy states, navigation, aggro, attacks and telegraphs
 src/world/effects.js     timed effects and cooldowns
 src/world/projectile.js  projectile simulation
 src/world/area.js        radial damage and timed area effects
