@@ -1051,6 +1051,8 @@ export class Game {
       const outcome = updateSummon(summon, dt, {
         entities: this.entities.items,
         grid: this.grid,
+        owner: this.character,
+        player: this.player,
         onBeam: (from, to, element) => this.addBeam(from, to, element),
         onDamage: (target, amount) =>
           this.dealDamage(target, amount, {

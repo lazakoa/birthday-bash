@@ -7,6 +7,8 @@ const SUMMON_NAMES = {
   golem: 'Stone Golem',
 };
 
+const FOLLOW_DISTANCE = 1.5;
+
 export class Summon extends Entity {
   constructor({
     type,
@@ -98,7 +100,7 @@ export function nearestHostile(entities, summon, maxDistance = Infinity) {
 export function updateSummon(
   summon,
   dt,
-  { entities = [], grid = null, onDamage = null, onBeam = null } = {},
+  { entities = [], grid = null, owner = null, player = null, onDamage = null, onBeam = null } = {},
 ) {
   if (!summon || summon.kind !== 'summon') return { removed: false, attacked: null };
   if (!summon.alive) return { removed: true, reason: 'dead', attacked: null };
@@ -117,6 +119,10 @@ export function updateSummon(
   const attackTarget = nearestHostile(entities, summon, summon.attackRange);
   if (attackTarget) summon.facing = attackTarget.x >= summon.x ? 1 : -1;
 
+  if (!pursuitTarget && !attackTarget && summon.speed > 0) {
+    followOwner(summon, dt, grid, { entities, owner, player });
+  }
+
   if (summon.attackTimer <= 0 && attackTarget) {
     summon.attackTimer = summon.attackCooldown;
     onBeam?.(summon, attackTarget, summon.element);
@@ -125,6 +131,24 @@ export function updateSummon(
   }
 
   return { removed: false, attacked: null };
+}
+
+export function followOwner(summon, dt, grid, { entities = [], owner = null, player = null } = {}) {
+  const followTarget = resolveOwner(summon, entities, owner, player);
+  if (!followTarget || followTarget === summon) return;
+  const distance = Math.hypot(followTarget.x - summon.x, followTarget.y - summon.y);
+  if (distance <= FOLLOW_DISTANCE + (followTarget.radius ?? 0)) return;
+  moveSummonToward(summon, followTarget, dt, grid);
+}
+
+function resolveOwner(summon, entities, owner, player) {
+  const candidates = [owner, player].filter(Boolean);
+  for (const candidate of candidates) {
+    if (candidate.id === summon.ownerId) return candidate.alive ? candidate : null;
+  }
+  const stored = entities.find((entity) => entity && entity.id === summon.ownerId);
+  if (stored) return stored.alive ? stored : null;
+  return candidates.find((candidate) => candidate.alive) ?? null;
 }
 
 export function moveSummonToward(summon, target, dt, grid) {
