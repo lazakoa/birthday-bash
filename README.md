@@ -3,6 +3,7 @@
 Isometric, Diablo-style dungeon crawler rendered with raw WebGL (no rendering library or game engine).
 Design: [specs/01_game_design_document.md](specs/01_game_design_document.md).
 Plan: [specs/02_implementation.md](specs/02_implementation.md).
+Mini map: [specs/03_mini_map.md](specs/03_mini_map.md).
 
 ## Run
 
@@ -33,12 +34,23 @@ selector with the same reward for testing.
 | Left-click ground | Cast a point-target ability, or with no ability selected clear the target and show a click marker |
 | `1` through `0` | Select the ability or Basic Attack assigned to that hotkey |
 | `k` or `c` (or the Character button) | Open the character sheet to spend stat and ability points and assign hotkeys |
-| Escape | Return left-click to the basic attack (or close the character sheet) |
+| `M` | Open or close the full-level map (pauses play while open) |
+| Escape | Return left-click to the basic attack (or close the character sheet / full map) |
 | R | Generate a new floor with a new seed (same floor number) |
 | Shift+R | Regenerate the current seed (same layout) |
 | S | Walk to the staircase on floors 1–4 (debug shortcut) |
-| H / M | Heal 25 health / restore 25 mana (debug shortcuts) |
+| H / Shift+M | Heal 25 health / restore 25 mana (debug shortcuts) |
 | T | Target the nearest enemy (debug shortcut) |
+
+## Mini map
+
+- A 176-pixel local map sits in the top-left corner and follows the player. Walkable tiles are
+  light, walls are dark, and the player is a red dot.
+- `M` opens a full-screen map of the current floor. The game pauses while the full map is open;
+  `M`, `Escape` or the close button resumes it.
+- The full map shows the entire floor at once, including the boss floor, with the same red player
+  marker. Floor changes rebuild both maps from the current collision grid.
+- The debug readout moved below the mini map so the two overlays do not cover each other.
 
 ## Phase 1: foundation
 
@@ -348,8 +360,8 @@ Combat and progression tuning lives in `src/config.js`; presentation-only consta
 system that uses them. The main values are the experience curve (50 base, 9% growth), the five-floor
 dungeon layout, the 16%/12%/10% per-floor enemy health/damage/experience scaling, the 2.5% per-room
 shrine chance with 60-second bonuses, the 950-health Lich, and every ability's damage, cost, cooldown
-and range. Debug shortcuts (`R`, `Shift+R`, `S`, `H`, `M`, `T`) and the URL helpers stay available in
-the release build.
+and range. Debug shortcuts (`R`, `Shift+R`, `S`, `H`, `Shift+M`, `T`) and the URL helpers stay
+available in the release build.
 
 ## Layout
 
@@ -368,6 +380,7 @@ src/gfx/renderer.js      batched sprite renderer
 src/gfx/iso.js           isometric world/screen conversion
 src/gfx/camera.js        camera follow
 src/ui/hud.js            health/mana/experience/target HUD, combat log, floating text
+src/ui/minimap.js        local mini map, full-level map overlay and floor map cache
 src/ui/creator.js        class selection and stat-allocation panel
 src/ui/abilityBar.js     ten-slot ability hotbar with costs, selection and cooldowns
 src/ui/abilityPanel.js   character sheet: stat spending, unlocks and hotkey assignment

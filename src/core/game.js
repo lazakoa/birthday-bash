@@ -46,6 +46,7 @@ import {
   findAbilityById,
 } from '../world/abilities.js';
 import { Hud } from '../ui/hud.js';
+import { MiniMap, isMapCloseKey, isMapToggleKey } from '../ui/minimap.js';
 import { CharacterCreator } from '../ui/creator.js';
 import { AbilityBar } from '../ui/abilityBar.js';
 import { AbilityPanel } from '../ui/abilityPanel.js';
@@ -111,6 +112,7 @@ export class Game {
     });
     this.pickups = new PickupSystem();
     this.visuals = [];
+    this.map = null;
     this.combatRng = new Rng(1);
 
     this.buildUi();
@@ -224,6 +226,15 @@ export class Game {
       onAllocate: (stat) => this.allocateStat(stat),
       onClose: () => this.toggleAbilityPanel(false),
     });
+    this.map = new MiniMap({
+      root: byId('minimap'),
+      canvas: byId('minimap-canvas'),
+      overlay: byId('map-overlay'),
+      overlayCanvas: byId('map-overlay-canvas'),
+      title: byId('map-overlay-title'),
+      closeButton: byId('map-overlay-close'),
+      onClose: () => this.canvas.focus(),
+    });
 
     const characterButton = byId('character-button');
     characterButton?.addEventListener(
@@ -281,9 +292,11 @@ export class Game {
     this.creator.hide();
     this.abilityBar.setVisible(true);
     this.abilityPanel.hide();
+    this.map?.close(false);
     this.overlayElement.hidden = true;
 
     this.loadFloor(randomSeed(), floorNumber);
+    this.map?.setVisible(true);
     this.hud.showStatus();
     this.hud.addLog(
       `${character.className} enters the Lich's Den. Floor ${floorNumber} of ${this.totalFloors}.`,
@@ -324,6 +337,8 @@ export class Game {
     this.hud.setVisible(false);
     this.abilityBar.setVisible(false);
     this.abilityPanel.hide();
+    this.map?.hide();
+    this.map?.setFloor(null);
     this.creator.reset();
     this.creator.show();
     this.overlayElement.hidden = true;
@@ -369,6 +384,7 @@ export class Game {
       this.lich = this.entities.add(spawnLich(floor));
     }
     this.combatRng = new Rng((this.seed ^ 0x7f4a7c15) >>> 0);
+    this.map?.setFloor(floor, { totalFloors: this.totalFloors });
     this.updateHud();
   }
 
@@ -406,6 +422,7 @@ export class Game {
     this.canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
       this.contextLost = true;
+      this.map?.hide();
       this.loop.stop();
       this.showOverlay('Graphics context lost.\nWaiting for the browser to restore WebGL...');
     }, { signal });
@@ -428,6 +445,7 @@ export class Game {
     this.creator?.destroy();
     this.abilityBar?.destroy();
     this.abilityPanel?.destroy();
+    this.map?.destroy();
     this.renderer.dispose();
   }
 
@@ -444,6 +462,7 @@ export class Game {
     this.renderer.uploadAtlas(this.atlasCanvas);
     this.contextLost = false;
     this.resize();
+    this.map?.setVisible(this.state === 'playing');
     this.hideOverlay();
     this.loop.start();
   }
@@ -481,7 +500,19 @@ export class Game {
       return;
     }
 
+    if (this.map?.isOpen()) {
+      this.handleMapKeys();
+      this.input.consumeClicks();
+      this.input.endFrame();
+      return;
+    }
+
     this.handleKeys();
+    if (this.map?.isOpen()) {
+      this.input.consumeClicks();
+      this.input.endFrame();
+      return;
+    }
     this.handleClicks();
 
     this.cooldowns.update(dt);
@@ -546,8 +577,12 @@ export class Game {
         const healed = this.character.heal(25);
         if (healed > 0) this.hud.addFloat(this.playerWorld.x, this.playerWorld.y - 28, `+${Math.round(healed)}`, '#8ef2a6');
       } else if (key.code === 'KeyM') {
-        const restored = this.character.restoreMana(25);
-        if (restored > 0) this.hud.addFloat(this.playerWorld.x, this.playerWorld.y - 28, `+${Math.round(restored)} MP`, '#9ec9ff');
+        if (key.shiftKey) {
+          const restored = this.character.restoreMana(25);
+          if (restored > 0) this.hud.addFloat(this.playerWorld.x, this.playerWorld.y - 28, `+${Math.round(restored)} MP`, '#9ec9ff');
+        } else if (isMapToggleKey(key)) {
+          this.toggleMap();
+        }
       } else if (key.code === 'KeyT') {
         const enemy = this.entities.nearest(this.player.x, this.player.y, { faction: 'enemy', maxDistance: 20 });
         if (enemy) this.selectTarget(enemy, true);
@@ -559,6 +594,12 @@ export class Game {
           this.clearTarget();
         }
       }
+    }
+  }
+
+  handleMapKeys() {
+    for (const key of this.input.consumeKeys()) {
+      if (isMapCloseKey(key)) this.closeMap();
     }
   }
 
@@ -896,6 +937,22 @@ export class Game {
     return ok;
   }
 
+  toggleMap(force = null) {
+    if (!this.map) return false;
+    const open = force ?? !this.map.isOpen();
+    if (!open) return this.closeMap();
+
+    if (this.state !== 'playing' || this.contextLost) return false;
+    if (this.abilityPanel?.isOpen()) return false;
+    if (!this.map.open()) return false;
+    this.input.consumeClicks();
+    return true;
+  }
+
+  closeMap() {
+    return this.map?.close(true) ?? false;
+  }
+
   toggleAbilityPanel(force = null) {
     if (!this.character || this.state !== 'playing') {
       this.abilityPanel.hide();
@@ -1156,6 +1213,7 @@ export class Game {
     this.character.resetSelection();
     this.abilityBar.setVisible(false);
     this.abilityPanel.hide();
+    this.map?.hide();
     this.hud.addLog(`${this.character.className} escapes the Lich's Den!`, '#f3d68a');
     this.showOverlay('You escaped the Lich\'s Den!\n\nPress Enter to create a new character.');
   }
@@ -1216,6 +1274,7 @@ export class Game {
     this.visuals.length = 0;
     this.abilityBar.setVisible(false);
     this.abilityPanel.hide();
+    this.map?.hide();
     this.hud.addLog(`${this.character.className} has fallen.`, '#ff9b9b');
     this.showOverlay('You died.\n\nPress Enter to create a new character.');
   }
@@ -1312,6 +1371,7 @@ export class Game {
     if (!this.floor) {
       renderer.flush(this.view.width, this.view.height, { x: 0, y: 0 }, this.view.dpr, TUNING.background);
       this.hud.renderOverlays(this.camera ?? { x: 0, y: 0 }, this.view.cssWidth, this.view.cssHeight);
+      this.map?.render(this.player);
       this.maybeCapture();
       return;
     }
@@ -1551,6 +1611,7 @@ export class Game {
 
     renderer.flush(this.view.width, this.view.height, this.camera, this.view.dpr, TUNING.background);
     this.hud.renderOverlays(this.camera, this.view.cssWidth, this.view.cssHeight);
+    this.map?.render(this.player);
     this.maybeCapture();
   }
 

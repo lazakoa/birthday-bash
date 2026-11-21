@@ -45,6 +45,26 @@ export const DUNGEON = {
   bossRoomBossOffset: 8,
 };
 
+export const MINIMAP = {
+  inset: 8,
+  size: 176,
+  tilesAcross: 24,
+  debugGap: 12,
+  background: 'rgba(4, 8, 12, 0.82)',
+  borderColor: 'rgba(140, 170, 255, 0.25)',
+  floorColor: '#3a4a63',
+  wallColor: '#090d14',
+  playerDotColor: '#ff3b3b',
+  playerDotOutline: '#2a0505',
+  miniDotRadius: 4,
+  largeDotRadius: 6,
+  largePanelWidthPx: 920,
+  largePanelWidthVw: 92,
+  largePanelHeightVh: 92,
+  largeMapWidthVw: 72,
+  largeMapHeightVh: 64,
+};
+
 export const LICH = {
   summonCount: 8,
   summonRecastThreshold: 3,

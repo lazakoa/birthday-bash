@@ -10,6 +10,14 @@ body {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
+:root {
+  --minimap-inset: 8px;
+  --minimap-size: 176px;
+  --minimap-debug-offset: 196px;
+  --minimap-background: rgba(4, 8, 12, 0.82);
+  --minimap-border-color: rgba(140, 170, 255, 0.25);
+}
+
 #game {
   display: block;
   width: 100vw;
@@ -30,9 +38,36 @@ body {
   display: none;
 }
 
+#minimap {
+  position: absolute;
+  top: var(--minimap-inset);
+  left: var(--minimap-inset);
+  width: var(--minimap-size);
+  height: var(--minimap-size);
+  box-sizing: border-box;
+  padding: 3px;
+  background: var(--minimap-background);
+  border: 1px solid var(--minimap-border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+#minimap[hidden] {
+  display: none;
+}
+
+#minimap-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  image-rendering: pixelated;
+}
+
 #hud-debug {
   position: absolute;
-  top: 8px;
+  top: var(--minimap-debug-offset);
   left: 8px;
   padding: 6px 10px;
   font-size: 12px;
@@ -445,6 +480,86 @@ body {
   cursor: default;
 }
 
+#map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 6, 10, 0.82);
+}
+
+#map-overlay[hidden] {
+  display: none;
+}
+
+.map-overlay-panel {
+  width: var(--map-panel-width, min(920px, 92vw));
+  max-height: var(--map-panel-max-height, 92vh);
+  overflow: auto;
+  padding: 16px 20px 14px;
+  background: rgba(9, 13, 20, 0.96);
+  border: 1px solid rgba(140, 170, 255, 0.25);
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+}
+
+.map-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.map-overlay-header h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f3d68a;
+}
+
+#map-overlay-close {
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  color: #eaf0ff;
+  background: rgba(50, 68, 100, 0.85);
+  border: 1px solid rgba(140, 170, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#map-overlay-close:hover {
+  background: rgba(76, 102, 148, 0.95);
+}
+
+.map-overlay-map {
+  width: var(--map-canvas-size, min(72vw, 64vh));
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 12px auto 0;
+  overflow: hidden;
+  background: #090d14;
+  border: 1px solid rgba(140, 170, 255, 0.22);
+  border-radius: 4px;
+}
+
+#map-overlay-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.map-overlay-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #8fa3c8;
+}
 
 #ability-bar {
   position: absolute;

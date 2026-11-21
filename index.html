@@ -9,6 +9,9 @@
   <body>
     <canvas id="game" tabindex="0"></canvas>
     <div id="hud" aria-live="off">
+      <div id="minimap" hidden>
+        <canvas id="minimap-canvas"></canvas>
+      </div>
       <div id="hud-debug"></div>
       <div id="hud-status" hidden>
         <div id="status-name">Wizard · Lv 1</div>
@@ -41,8 +44,20 @@
         <strong>Birthday Bash</strong> &mdash; five floors, shrines and the Lich<br />
         Right-click: move &nbsp;|&nbsp; Left-click enemy: attack &nbsp;|&nbsp; 1-0: select ability &nbsp;|&nbsp;
         Left-click: cast selected ability &nbsp;|&nbsp; Esc: back to basic attack<br />
-        k / c: abilities and stats &nbsp;|&nbsp; R: new floor &nbsp;|&nbsp; Shift+R: same floor &nbsp;|&nbsp; S: stairs<br />
-        Debug: H heals, M restores mana, T targets the nearest enemy
+        k / c: abilities and stats &nbsp;|&nbsp; M: map &nbsp;|&nbsp; R: new floor &nbsp;|&nbsp; Shift+R: same floor &nbsp;|&nbsp; S: stairs<br />
+        Debug: H heals, Shift+M restores mana, T targets the nearest enemy
+      </div>
+    </div>
+    <div id="map-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="map-overlay-title">
+      <div class="map-overlay-panel">
+        <header class="map-overlay-header">
+          <h2 id="map-overlay-title">The Lich's Den</h2>
+          <button id="map-overlay-close" type="button">Close (M / Esc)</button>
+        </header>
+        <div class="map-overlay-map">
+          <canvas id="map-overlay-canvas"></canvas>
+        </div>
+        <p class="map-overlay-hint">Entire floor &middot; the red dot marks your position</p>
       </div>
     </div>
     <div id="ability-panel" hidden>
