@@ -1,6 +1,7 @@
 import { createProgram } from './gl.js';
 import { createTextureFromCanvas } from './texture.js';
 import { SPRITE_DEFS, spriteUv } from './atlas.js';
+import { cameraMatrix } from './iso.js';
 
 const VERTEX_SOURCE = `
 precision mediump float;
@@ -35,6 +36,7 @@ void main() {
 
 const FLOATS_PER_VERTEX = 8;
 const VERTICES_PER_SPRITE = 6;
+const GROUND_SPRITES = new Set(['floor', 'floorAlt', 'highlight', 'shadow', 'stairs']);
 
 export class SpriteRenderer {
   constructor(gl, maxSprites) {
@@ -47,6 +49,8 @@ export class SpriteRenderer {
     this.atlasCanvas = null;
     this.spriteCount = 0;
     this.overflowed = 0;
+    this.camera = { x: 0, y: 0 };
+    this.matrix = cameraMatrix(null);
 
     this.locations = {
       position: gl.getAttribLocation(this.program, 'a_position'),
@@ -62,6 +66,10 @@ export class SpriteRenderer {
     for (const [name, def] of Object.entries(SPRITE_DEFS)) {
       this.uv[name] = { ...spriteUv(def), ...{ w: def.w, h: def.h, ax: def.ax, ay: def.ay } };
     }
+    this.whiteUv = {
+      u: (this.uv.bar.u0 + this.uv.bar.u1) / 2,
+      v: (this.uv.bar.v0 + this.uv.bar.v1) / 2,
+    };
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, this.data.byteLength, gl.STREAM_DRAW);
@@ -74,10 +82,12 @@ export class SpriteRenderer {
     this.texture = createTextureFromCanvas(this.gl, atlasCanvas);
   }
 
-  begin() {
+  begin(camera = null) {
     this.spriteCount = 0;
     this.overflowed = 0;
     this._vertexCursor = 0;
+    this.camera = camera ?? { x: 0, y: 0 };
+    this.matrix = cameraMatrix(camera);
   }
 
   draw(name, x, y, options = {}) {
@@ -98,10 +108,47 @@ export class SpriteRenderer {
 
     const width = sprite.w * scaleX;
     const height = sprite.h * scaleY;
-    const x0 = x - anchorX * scaleX;
-    const y0 = y - anchorY * scaleY;
-    const x1 = x0 + width;
-    const y1 = y0 + height;
+    const left = -anchorX * scaleX;
+    const top = -anchorY * scaleY;
+    const right = left + width;
+    const bottom = top + height;
+
+    const matrix = this.matrix;
+    const relativeX = x - this.camera.x;
+    const relativeY = y - this.camera.y;
+    const baseX =
+      this.camera.x + matrix.m00 * relativeX + matrix.m01 * relativeY;
+    const baseY =
+      this.camera.y + matrix.m10 * relativeX + matrix.m11 * relativeY;
+    const ground = options.ground ?? GROUND_SPRITES.has(name);
+
+    let topLeftX;
+    let topLeftY;
+    let topRightX;
+    let topRightY;
+    let bottomRightX;
+    let bottomRightY;
+    let bottomLeftX;
+    let bottomLeftY;
+    if (ground) {
+      topLeftX = baseX + matrix.m00 * left + matrix.m01 * top;
+      topLeftY = baseY + matrix.m10 * left + matrix.m11 * top;
+      topRightX = baseX + matrix.m00 * right + matrix.m01 * top;
+      topRightY = baseY + matrix.m10 * right + matrix.m11 * top;
+      bottomRightX = baseX + matrix.m00 * right + matrix.m01 * bottom;
+      bottomRightY = baseY + matrix.m10 * right + matrix.m11 * bottom;
+      bottomLeftX = baseX + matrix.m00 * left + matrix.m01 * bottom;
+      bottomLeftY = baseY + matrix.m10 * left + matrix.m11 * bottom;
+    } else {
+      topLeftX = baseX + left;
+      topLeftY = baseY + top;
+      topRightX = baseX + right;
+      topRightY = baseY + top;
+      bottomRightX = baseX + right;
+      bottomRightY = baseY + bottom;
+      bottomLeftX = baseX + left;
+      bottomLeftY = baseY + bottom;
+    }
 
     let u0 = sprite.u0;
     let u1 = sprite.u1;
@@ -116,12 +163,45 @@ export class SpriteRenderer {
     const b = tint[2];
     const a = (tint[3] ?? 1) * alpha;
 
-    this.pushVertex(x0, y0, u0, sprite.v0, r, g, b, a);
-    this.pushVertex(x1, y0, u1, sprite.v0, r, g, b, a);
-    this.pushVertex(x1, y1, u1, sprite.v1, r, g, b, a);
-    this.pushVertex(x0, y0, u0, sprite.v0, r, g, b, a);
-    this.pushVertex(x1, y1, u1, sprite.v1, r, g, b, a);
-    this.pushVertex(x0, y1, u0, sprite.v1, r, g, b, a);
+    this.pushVertex(topLeftX, topLeftY, u0, sprite.v0, r, g, b, a);
+    this.pushVertex(topRightX, topRightY, u1, sprite.v0, r, g, b, a);
+    this.pushVertex(bottomRightX, bottomRightY, u1, sprite.v1, r, g, b, a);
+    this.pushVertex(topLeftX, topLeftY, u0, sprite.v0, r, g, b, a);
+    this.pushVertex(bottomRightX, bottomRightY, u1, sprite.v1, r, g, b, a);
+    this.pushVertex(bottomLeftX, bottomLeftY, u0, sprite.v1, r, g, b, a);
+  }
+
+  drawGroundQuad(points, options = {}) {
+    if (!points || points.length !== 4) return;
+    if (this.spriteCount >= this.maxSprites) {
+      this.overflowed += 1;
+      return;
+    }
+
+    const tint = options.tint ?? WHITE;
+    const alpha = options.alpha ?? 1;
+    const r = tint[0];
+    const g = tint[1];
+    const b = tint[2];
+    const a = (tint[3] ?? 1) * alpha;
+    const { u, v } = this.whiteUv;
+    const matrix = this.matrix;
+    const camera = this.camera;
+    const projected = points.map((point) => {
+      const relativeX = point.x - camera.x;
+      const relativeY = point.y - camera.y;
+      return {
+        x: camera.x + matrix.m00 * relativeX + matrix.m01 * relativeY,
+        y: camera.y + matrix.m10 * relativeX + matrix.m11 * relativeY,
+      };
+    });
+
+    this.pushVertex(projected[0].x, projected[0].y, u, v, r, g, b, a);
+    this.pushVertex(projected[1].x, projected[1].y, u, v, r, g, b, a);
+    this.pushVertex(projected[2].x, projected[2].y, u, v, r, g, b, a);
+    this.pushVertex(projected[0].x, projected[0].y, u, v, r, g, b, a);
+    this.pushVertex(projected[2].x, projected[2].y, u, v, r, g, b, a);
+    this.pushVertex(projected[3].x, projected[3].y, u, v, r, g, b, a);
   }
 
   pushVertex(x, y, u, v, r, g, b, a) {

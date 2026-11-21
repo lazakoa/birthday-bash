@@ -9,6 +9,7 @@ import {
   ABILITY_HOTKEYS,
   ELEMENT_COLORS,
   SHRINES,
+  WALL,
 } from '../config.js';
 import { Loop } from './loop.js';
 import { Input } from './input.js';
@@ -18,11 +19,20 @@ import { buildAtlasCanvas } from '../gfx/atlas.js';
 import {
   screenToTile,
   screenToWorld,
+  worldToScreen,
   tileToWorld,
   visibleWorldBounds,
   isWorldPointVisible,
+  cameraDepth,
+  cameraInverseMatrix,
+  TILE_CORNERS,
 } from '../gfx/iso.js';
-import { createCamera, followCamera as followCameraStep } from '../gfx/camera.js';
+import {
+  createCamera,
+  followCamera as followCameraStep,
+  resetCameraView,
+  updateCameraView,
+} from '../gfx/camera.js';
 import { generateFloor, TOTAL_FLOORS } from '../world/floor.js';
 import { findPath, nearestWalkableTile, smoothPath } from '../world/pathfinding.js';
 import { nextSeed, randomSeed, Rng } from '../world/rng.js';
@@ -294,6 +304,7 @@ export class Game {
     this.abilityPanel.hide();
     this.map?.close(false);
     this.overlayElement.hidden = true;
+    this.camera = null;
 
     this.loadFloor(randomSeed(), floorNumber);
     this.map?.setVisible(true);
@@ -339,6 +350,7 @@ export class Game {
     this.abilityPanel.hide();
     this.map?.hide();
     this.map?.setFloor(null);
+    this.camera = null;
     this.creator.reset();
     this.creator.show();
     this.overlayElement.hidden = true;
@@ -362,7 +374,12 @@ export class Game {
       this.player.clearPath();
       this.player.facing = 1;
       this.playerWorld = tileToWorld(this.player.x, this.player.y);
-      this.camera = createCamera(this.playerWorld.x, this.playerWorld.y);
+      if (this.camera) {
+        this.camera.x = this.playerWorld.x;
+        this.camera.y = this.playerWorld.y;
+      } else {
+        this.camera = createCamera(this.playerWorld.x, this.playerWorld.y);
+      }
     }
 
     this.hoverTile = null;
@@ -531,6 +548,7 @@ export class Game {
     this.checkStairs();
     this.playerWorld = tileToWorld(this.player.x, this.player.y);
     this.pathPoints = this.player.path;
+    this.updateCameraOrientation(dt);
     this.followCamera(dt);
     this.updateHover();
     this.checkPlayerDeath();
@@ -586,6 +604,16 @@ export class Game {
       } else if (key.code === 'KeyT') {
         const enemy = this.entities.nearest(this.player.x, this.player.y, { faction: 'enemy', maxDistance: 20 });
         if (enemy) this.selectTarget(enemy, true);
+      } else if (key.code === 'KeyV') {
+        if (
+          !key.shiftKey &&
+          !key.ctrlKey &&
+          !key.altKey &&
+          !key.metaKey &&
+          !this.abilityPanel.isOpen()
+        ) {
+          resetCameraView(this.camera);
+        }
       } else if (key.code === 'Escape') {
         if (this.abilityPanel.isOpen()) {
           this.toggleAbilityPanel(false);
@@ -633,13 +661,13 @@ export class Game {
   }
 
   pickEnemy(sx, sy) {
-    const world = screenToWorld(sx, sy, this.camera, this.view.cssWidth, this.view.cssHeight);
     let best = null;
     let bestDistance = COMBAT.pickRadiusWorld;
     for (const enemy of this.entities.items) {
       if (!enemy.alive || enemy.faction !== 'enemy') continue;
       const center = tileToWorld(enemy.x, enemy.y);
-      const distance = Math.hypot(world.x - center.x, world.y - (center.y - COMBAT.pickAnchorLift));
+      const screen = worldToScreen(center.x, center.y, this.camera, this.view.cssWidth, this.view.cssHeight);
+      const distance = Math.hypot(sx - screen.x, sy - (screen.y - COMBAT.pickAnchorLift));
       if (distance <= bestDistance) {
         best = enemy;
         bestDistance = distance;
@@ -1319,6 +1347,22 @@ export class Game {
     followCameraStep(this.camera, this.playerWorld, dt, RENDER.cameraFollowSharpness);
   }
 
+  updateCameraOrientation(dt) {
+    if (!this.camera || this.abilityPanel?.isOpen?.()) return;
+    const modifiers = this.input.modifiers;
+    if (modifiers && (modifiers.shiftKey || modifiers.ctrlKey || modifiers.altKey || modifiers.metaKey)) {
+      return;
+    }
+    const keys = this.input.keys;
+    if (!keys) return;
+    updateCameraView(this.camera, dt, {
+      left: keys.has('ArrowLeft'),
+      right: keys.has('ArrowRight'),
+      up: keys.has('ArrowUp'),
+      down: keys.has('ArrowDown'),
+    });
+  }
+
   updateHover() {
     if (!this.input.mouse.inside) {
       this.hoverTile = null;
@@ -1361,17 +1405,62 @@ export class Game {
     };
   }
 
+  drawWall(renderer, center) {
+    const inverse = cameraInverseMatrix(this.camera);
+    const offsetX = -WALL.height * inverse.m01;
+    const offsetY = -WALL.height * inverse.m11;
+    const base = TILE_CORNERS.map((corner) => ({
+      x: center.x + corner.x,
+      y: center.y + corner.y,
+    }));
+    const top = base.map((point) => ({ x: point.x + offsetX, y: point.y + offsetY }));
+    const screen = base.map((point) =>
+      worldToScreen(point.x, point.y, this.camera, this.view.cssWidth, this.view.cssHeight),
+    );
+    const centerScreen = worldToScreen(
+      center.x,
+      center.y,
+      this.camera,
+      this.view.cssWidth,
+      this.view.cssHeight,
+    );
+
+    for (let index = 0; index < 4; index++) {
+      const next = (index + 1) % 4;
+      if (screen[next].x >= screen[index].x) continue;
+      const tint =
+        (screen[index].x + screen[next].x) / 2 < centerScreen.x
+          ? WALL.leftColor
+          : WALL.rightColor;
+      renderer.drawGroundQuad([base[index], base[next], top[next], top[index]], { tint });
+    }
+
+    const topCenter = { x: center.x + offsetX, y: center.y + offsetY };
+    const innerTop = top.map((point) => ({
+      x: topCenter.x + (point.x - topCenter.x) * WALL.topInset,
+      y: topCenter.y + (point.y - topCenter.y) * WALL.topInset,
+    }));
+    renderer.drawGroundQuad(top, { tint: WALL.edgeColor });
+    renderer.drawGroundQuad(innerTop, { tint: WALL.topColor });
+  }
+
   render(dt) {
     if (this.contextLost) return;
     this.trackFps(dt);
 
     const renderer = this.renderer;
-    renderer.begin();
+    renderer.begin(this.camera ?? null);
 
     if (!this.floor) {
-      renderer.flush(this.view.width, this.view.height, { x: 0, y: 0 }, this.view.dpr, TUNING.background);
+      renderer.flush(
+        this.view.width,
+        this.view.height,
+        this.camera ?? { x: 0, y: 0 },
+        this.view.dpr,
+        TUNING.background,
+      );
       this.hud.renderOverlays(this.camera ?? { x: 0, y: 0 }, this.view.cssWidth, this.view.cssHeight);
-      this.map?.render(this.player);
+      this.map?.render(this.player, this.camera);
       this.maybeCapture();
       return;
     }
@@ -1474,7 +1563,9 @@ export class Game {
       for (let tx = bounds.minX; tx <= bounds.maxX; tx++) {
         if (!this.grid.isBlocked(tx, ty)) continue;
         const center = tileToWorld(tx + 0.5, ty + 0.5);
-        occluders.push({ y: center.y + 16, kind: 'wall', x: center.x });
+        const x = center.x;
+        const y = center.y + 16;
+        occluders.push({ y, kind: 'wall', x, center, depth: cameraDepth(this.camera, x, y) });
       }
     }
 
@@ -1482,7 +1573,14 @@ export class Game {
       if (!enemy.alive || enemy.kind === 'pickup') continue;
       const center = tileToWorld(enemy.x, enemy.y);
       if (!isWorldPointVisible(center.x, center.y, worldBounds)) continue;
-      occluders.push({ y: center.y, kind: 'enemy', x: center.x, enemy, center });
+      occluders.push({
+        y: center.y,
+        kind: 'enemy',
+        x: center.x,
+        enemy,
+        center,
+        depth: cameraDepth(this.camera, center.x, center.y),
+      });
     }
 
     const feet = this.playerWorld;
@@ -1492,13 +1590,14 @@ export class Game {
       x: feet.x,
       facing: this.player.facing,
       moving: this.player.moving,
+      depth: cameraDepth(this.camera, feet.x, feet.y),
     });
 
-    occluders.sort((a, b) => a.y - b.y || a.x - b.x);
+    occluders.sort((a, b) => a.depth - b.depth || a.x - b.x);
 
     for (const item of occluders) {
       if (item.kind === 'wall') {
-        renderer.draw('wall', item.x, item.y);
+        this.drawWall(renderer, item.center);
       } else if (item.kind === 'enemy') {
         const { enemy, center } = item;
         if (enemy.windup > 0 && enemy.windupTime > 0) {
@@ -1611,7 +1710,7 @@ export class Game {
 
     renderer.flush(this.view.width, this.view.height, this.camera, this.view.dpr, TUNING.background);
     this.hud.renderOverlays(this.camera, this.view.cssWidth, this.view.cssHeight);
-    this.map?.render(this.player);
+    this.map?.render(this.player, this.camera);
     this.maybeCapture();
   }
 

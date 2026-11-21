@@ -35,6 +35,9 @@ selector with the same reward for testing.
 | `1` through `0` | Select the ability or Basic Attack assigned to that hotkey |
 | `k` or `c` (or the Character button) | Open the character sheet to spend stat and ability points and assign hotkeys |
 | `M` | Open or close the full-level map (pauses play while open) |
+| `←` / `→` | Turn the camera left or right while held |
+| `↑` / `↓` | Raise or lower the camera pitch while held |
+| `V` | Snap the camera back to the initial isometric view |
 | Escape | Return left-click to the basic attack (or close the character sheet / full map) |
 | R | Generate a new floor with a new seed (same floor number) |
 | Shift+R | Regenerate the current seed (same layout) |
@@ -45,7 +48,8 @@ selector with the same reward for testing.
 ## Mini map
 
 - A 176-pixel local map sits in the top-left corner and follows the player. Walkable tiles are
-  light, walls are dark, and the player is a red dot.
+  light, walls are dark, and the player is a centered red dot. The mini map rotates with camera yaw
+  so the camera's forward direction points up; the full map stays north-up.
 - `M` opens a full-screen map of the current floor. The game pauses while the full map is open;
   `M`, `Escape` or the close button resumes it.
 - The full map shows the entire floor at once, including the boss floor, with the same red player
@@ -57,7 +61,8 @@ selector with the same reward for testing.
 - Raw WebGL 2 (WebGL 1 fallback) sprite renderer: shader compilation, single dynamic vertex buffer,
   one texture atlas, alpha blending, sprite batching, resource cleanup.
 - Procedurally drawn placeholder sprites in a generated atlas.
-- Isometric world/screen conversion, fixed-orientation camera that follows the player with smoothing.
+- Isometric world/screen conversion and a user-adjustable camera that follows the player with smoothing.
+- Arrow keys turn the camera and adjust its pitch; `V` restores the initial isometric view.
 - Input capture with canvas-relative coordinates, right-click context-menu suppression.
 - Canvas resizing and DPR handling, pause on blur/focus loss, WebGL context-loss and restore handling.
 - Debug HUD with FPS, sprite count, camera, player, hover, seed, room count and error count.

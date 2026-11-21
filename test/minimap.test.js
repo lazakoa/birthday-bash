@@ -8,7 +8,16 @@ import {
   isMapCloseKey,
   isMapToggleKey,
   localMapWindow,
+  miniMapCropSpan,
+  miniMapRotation,
 } from '../src/ui/minimap.js';
+
+test('mini map rotation follows camera yaw and the crop covers the rotated square', () => {
+  assert.equal(miniMapRotation({ yaw: 0, pitch: 1.2 }), 0);
+  assert.equal(miniMapRotation({ yaw: Math.PI / 2, pitch: 0.4 }), Math.PI / 2);
+  assert.equal(miniMapCropSpan(MINIMAP.tilesAcross), Math.ceil(MINIMAP.tilesAcross * Math.SQRT2) + 1);
+  assert.ok(miniMapCropSpan(MINIMAP.tilesAcross) >= Math.ceil(MINIMAP.tilesAcross * Math.SQRT2));
+});
 
 test('local map window centers on the player and clamps to floor edges', () => {
   const centered = localMapWindow(144, 144, 50.5, 80.5, MINIMAP.tilesAcross);

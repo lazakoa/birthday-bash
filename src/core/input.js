@@ -3,6 +3,7 @@ export class Input {
     this.canvas = canvas;
     this.keys = new Set();
     this.pressed = new Set();
+    this.modifiers = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false };
     this.mouse = { x: 0, y: 0, inside: false };
     this.clicks = [];
     this.keyPresses = [];
@@ -22,7 +23,7 @@ export class Input {
     this.canvas.addEventListener('pointerenter', () => (this.mouse.inside = true), { signal });
     this.canvas.addEventListener('pointerleave', () => (this.mouse.inside = false), { signal });
     window.addEventListener('keydown', (event) => this.handleKeyDown(event), { signal, capture: true });
-    window.addEventListener('keyup', (event) => this.keys.delete(event.code), { signal, capture: true });
+    window.addEventListener('keyup', (event) => this.handleKeyUp(event), { signal, capture: true });
     window.addEventListener('blur', () => this.clearHeld(), { signal });
   }
 
@@ -40,6 +41,7 @@ export class Input {
   clearHeld() {
     this.keys.clear();
     this.pressed.clear();
+    this.modifiers = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false };
   }
 
   handlePointerDown(event) {
@@ -58,6 +60,7 @@ export class Input {
   }
 
   handleKeyDown(event) {
+    this.updateModifiers(event);
     if (event.repeat) {
       return;
     }
@@ -73,6 +76,18 @@ export class Input {
       metaKey: event.metaKey,
     });
     if (PREVENT_DEFAULT_KEYS.has(event.code) || isUnmodifiedGameKey(event)) event.preventDefault();
+  }
+
+  handleKeyUp(event) {
+    this.keys.delete(event.code);
+    this.updateModifiers(event);
+  }
+
+  updateModifiers(event) {
+    this.modifiers.shiftKey = Boolean(event.shiftKey);
+    this.modifiers.ctrlKey = Boolean(event.ctrlKey);
+    this.modifiers.altKey = Boolean(event.altKey);
+    this.modifiers.metaKey = Boolean(event.metaKey);
   }
 
   updateMouse(event) {
@@ -102,13 +117,13 @@ export class Input {
 
 const PREVENT_DEFAULT_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
 
-const GAME_KEY_CODES = new Set(['KeyK', 'KeyC', 'KeyR', 'KeyS', 'KeyH', 'KeyM', 'KeyT']);
+const GAME_KEY_CODES = new Set(['KeyK', 'KeyC', 'KeyR', 'KeyS', 'KeyH', 'KeyM', 'KeyT', 'KeyV']);
 for (let digit = 0; digit <= 9; digit++) {
   GAME_KEY_CODES.add(`Digit${digit}`);
   GAME_KEY_CODES.add(`Numpad${digit}`);
 }
 
-const GAME_KEY_LETTERS = new Set(['k', 'c', 'r', 's', 'h', 'm', 't']);
+const GAME_KEY_LETTERS = new Set(['k', 'c', 'r', 's', 'h', 'm', 't', 'v']);
 
 function isUnmodifiedGameKey(event) {
   if (event.ctrlKey || event.altKey || event.metaKey) return false;

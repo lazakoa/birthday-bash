@@ -9,7 +9,7 @@ The feature is a HUD convenience only. It must not change the isometric camera, 
 ## Overview
 
 - During active play, a small floating mini map is always visible in the top-left corner of the HUD.
-- The mini map shows a local, north-up crop of the current floor centered on the player.
+- The mini map shows a local crop of the current floor centered on the player, oriented to match the camera's yaw.
 - The player appears on the mini map as a red dot.
 - Pressing `M` opens a large map overlay showing the entire current floor.
 - The large map pauses the game while it is open.
@@ -40,8 +40,9 @@ The feature is a HUD convenience only. It must not change the isometric camera, 
 ## Mini Map Content and Scale
 
 - The mini map shows a square local crop of the current floor, 24 by 24 tiles by default, with the number of visible tiles held in centralized configuration.
-- The crop is centered on the player. When the player is close to a floor edge, the crop is clamped to the floor bounds so that empty space outside the floor is not shown. In that case the player dot may sit off-centre but must remain visible.
-- The mini map is north-up and tile-aligned: tile `x` increases to the right and tile `y` increases downward. It is not rotated to match the isometric camera and must not be drawn with the isometric projection.
+- The crop is centered on the player. The mini map samples a local area large enough to cover the rotated square, using the diagonal of the visible-tile window plus padding. When the player is close to a floor edge, sampling is clamped to the floor bounds and any uncovered area is drawn in the wall or background colour. The player dot stays centred and visible.
+- The mini map is camera-up: it rotates around the player as camera yaw changes so that the camera's forward direction points up. Pitch does not rotate the mini map. It uses the tile grid directly and is not drawn with the isometric projection.
+- The large map remains north-up and tile-aligned, independent of the mini map's rotation.
 - Walkable tiles are drawn in a light, muted floor colour. Blocked tiles are drawn in a darker wall or background colour. The walkable layout must match the collision grid used by the game.
 - There is no fog of war in this version. Every tile inside the local crop is shown.
 - The player is a solid red dot with a thin dark outline. The dot is drawn at the player's exact position within the crop and is always the topmost mini map element.
@@ -53,7 +54,7 @@ The feature is a HUD convenience only. It must not change the isometric camera, 
 - The large map is a full-screen overlay that dims the game and presents a single centred map panel.
 - The map panel shows the entire current floor at once. No scrolling, panning, or zooming is required, and no part of the playable level may be cut off.
 - The entire floor is fit inside the panel with its aspect ratio preserved. A 144 by 144 tile floor must remain fully visible on both common desktop resolutions and smaller browser windows.
-- The large map uses the same north-up, tile-aligned orientation and floor/wall colour convention as the mini map, with a higher resolution.
+- The large map uses a north-up, tile-aligned orientation and the same floor and wall colour convention as the mini map, with a higher resolution.
 - The player is shown as the same red dot, scaled so that it remains obvious on the larger map. It must be positioned at the player's exact floor position.
 - The overlay includes the current floor identification, for example `The Lich's Den — Floor 3 of 5`, and a visible close hint such as `Press M or Esc to close`.
 - The overlay includes a focusable close button for keyboard users. Opening the map moves focus to the close button; closing the map returns focus to the game canvas.
@@ -83,7 +84,7 @@ The feature is a HUD convenience only. It must not change the isometric camera, 
 
 The following values should live in centralized configuration rather than being hard-coded in HUD or gameplay logic:
 
-- Mini map inset, size, and number of visible tiles.
+- Mini map inset, size, number of visible tiles, and rotation crop padding.
 - Mini map and large map background, floor, wall, border, and player-dot colours.
 - Player-dot radius for the mini map and large map.
 - Large map panel maximum width and height as a percentage of the viewport.
@@ -94,6 +95,7 @@ Provisional defaults:
 - Mini map inset: 8 CSS pixels.
 - Mini map size: 176 by 176 CSS pixels.
 - Visible tiles: 24 by 24.
+- Rotation crop padding: 1 tile beyond the diagonal sampling window.
 - Player dot colour: `#ff3b3b` with a dark outline.
 - Player dot radius: 4 CSS pixels on the mini map, 6 CSS pixels on the large map.
 
@@ -101,8 +103,9 @@ Provisional defaults:
 
 - The mini map is visible in the top-left during active play and is hidden during class selection, death, victory, and graphics-context-loss states.
 - The mini map shows the correct local floor layout and updates its crop as the player moves.
-- The player is always shown as a clearly visible red dot at the correct position, including when the crop is clamped near a floor edge.
-- The mini map is north-up and matches the collision grid rather than the isometric view.
+- The player is always shown as a clearly visible red dot at the centre of the mini map, including when sampling is clamped near a floor edge.
+- The mini map rotates with camera yaw so the camera's forward direction points up, and remains fixed when pitch changes.
+- Mini map rotation is sampled from the collision grid with no gaps at intermediate yaw angles, and the large map stays north-up.
 - Right-click movement and left-click targeting still work when the cursor is over the mini map.
 - `M` opens the large map and pauses the game. `M` or `Escape` closes it and resumes the game without a timing jump.
 - `Shift+M` restores mana, and `M` no longer restores mana.

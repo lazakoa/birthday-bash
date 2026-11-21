@@ -1,4 +1,13 @@
 import { DUNGEON, MINIMAP } from '../config.js';
+import { INITIAL_YAW } from '../gfx/camera.js';
+
+export function miniMapRotation(camera) {
+  return Number.isFinite(camera?.yaw) ? camera.yaw : INITIAL_YAW;
+}
+
+export function miniMapCropSpan(tilesAcross = MINIMAP.tilesAcross) {
+  return Math.ceil(tilesAcross * Math.SQRT2) + MINIMAP.rotationPaddingTiles;
+}
 
 export function localMapWindow(gridWidth, gridHeight, playerX, playerY, tilesAcross = MINIMAP.tilesAcross) {
   const sourceWidth = Math.max(1, Math.floor(Number(gridWidth) || 0));
@@ -109,6 +118,7 @@ export class MiniMap {
     this.grid = null;
     this.cache = null;
     this.player = null;
+    this.camera = null;
     this.totalFloors = DUNGEON.totalFloors;
     this.openFlag = false;
     this.abort = new AbortController();
@@ -206,8 +216,9 @@ export class MiniMap {
     this.title.textContent = `The Lich's Den — Floor ${floorNumber} of ${this.totalFloors}${suffix}`;
   }
 
-  render(player) {
+  render(player, camera) {
     if (player) this.player = player;
+    if (camera) this.camera = camera;
     if (!this.grid || !this.player) return;
     if (this.root && !this.root.hidden) this.drawMini();
     if (this.openFlag) this.drawLarge();
@@ -223,29 +234,28 @@ export class MiniMap {
       this.grid.height,
       this.player.x,
       this.player.y,
-      MINIMAP.tilesAcross,
+      miniMapCropSpan(MINIMAP.tilesAcross),
     );
-    const fit = fitRect(window.width, window.height, width, height);
+    const scale = Math.min(width, height) / MINIMAP.tilesAcross;
 
     ctx.fillStyle = MINIMAP.wallColor;
     ctx.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    ctx.rotate(miniMapRotation(this.camera));
     ctx.drawImage(
       this.cache,
       window.minX,
       window.minY,
       window.width,
       window.height,
-      fit.offsetX,
-      fit.offsetY,
-      fit.width,
-      fit.height,
+      -(this.player.x - window.minX) * scale,
+      -(this.player.y - window.minY) * scale,
+      window.width * scale,
+      window.height * scale,
     );
-    drawPlayerDot(
-      ctx,
-      fit.offsetX + (this.player.x - window.minX) * fit.scale,
-      fit.offsetY + (this.player.y - window.minY) * fit.scale,
-      MINIMAP.miniDotRadius,
-    );
+    ctx.restore();
+    drawPlayerDot(ctx, width / 2, height / 2, MINIMAP.miniDotRadius);
   }
 
   drawLarge() {

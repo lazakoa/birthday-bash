@@ -4,6 +4,25 @@ export const RENDER = {
   cameraFollowSharpness: 12,
 };
 
+export const CAMERA = {
+  initialYawDegrees: 45,
+  initialPitchDegrees: 30,
+  minPitchDegrees: 15,
+  maxPitchDegrees: 60,
+  yawDegreesPerSecond: 90,
+  pitchDegreesPerSecond: 60,
+  scale: 32 * Math.SQRT2,
+};
+
+export const WALL = {
+  height: 48,
+  topColor: [0.35686, 0.39216, 0.46275, 1],
+  leftColor: [0.23137, 0.25882, 0.31765, 1],
+  rightColor: [0.2902, 0.32157, 0.38824, 1],
+  edgeColor: [0.14902, 0.17255, 0.21569, 1],
+  topInset: 0.93,
+};
+
 export const PLAYER = {
   speedTilesPerSecond: 4.6,
   radiusTiles: 0.3,
@@ -49,6 +68,7 @@ export const MINIMAP = {
   inset: 8,
   size: 176,
   tilesAcross: 24,
+  rotationPaddingTiles: 1,
   debugGap: 12,
   background: 'rgba(4, 8, 12, 0.82)',
   borderColor: 'rgba(140, 170, 255, 0.25)',
