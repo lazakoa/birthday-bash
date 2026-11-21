@@ -537,8 +537,9 @@ export class Game {
     this.player.update(this.grid, dt);
     this.entities.update(dt);
     this.updateEnemies(dt);
-    this.projectiles.update(dt, { grid: this.grid, entities: this.entities.all });
-    this.areas.update(dt, { grid: this.grid, entities: this.entities.all });
+    const combatEntities = this.combatEntities();
+    this.projectiles.update(dt, { grid: this.grid, entities: combatEntities });
+    this.areas.update(dt, { grid: this.grid, entities: combatEntities });
     this.updateSummons(dt);
     this.updatePickups(dt);
     this.updateShrines();
@@ -1058,8 +1059,15 @@ export class Game {
     return { x: origin.x, y: origin.y };
   }
 
+  combatEntities() {
+    const entities = this.entities.all;
+    if (!this.character || entities.includes(this.character)) return entities;
+    return [...entities, this.character];
+  }
+
   updateEnemies(dt) {
     if (!this.character || !this.grid) return;
+    const combatEntities = this.combatEntities();
     const hooks = {
       damage: (entity, amount, info = {}) =>
         this.dealDamage(entity, amount, {
@@ -1088,7 +1096,7 @@ export class Game {
     };
     const context = {
       player: this.character,
-      entities: this.entities.all,
+      entities: combatEntities,
       grid: this.grid,
       rng: this.combatRng,
       abilitySystem: this.abilities,

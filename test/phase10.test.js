@@ -325,6 +325,35 @@ test('enemy area damage still hurts the player side, including summons', () => {
   assert.equal(golem.health < golem.maxHealth, true, 'allied summons are valid enemy targets');
 });
 
+test('enemy spells can damage the player through the live combat entity list', () => {
+  const game = makeHarness('wizard');
+  const enemy = new Enemy('skeletonMage', game.player.x + 3, game.player.y, { floor: 1 });
+  enemy.mana = 999;
+  game.entities.add(enemy);
+  const entities = game.combatEntities();
+  assert.ok(entities.includes(game.player), 'the player is part of the live combat list');
+
+  const startingHealth = game.player.health;
+  const fireball = enemy.abilities.find((ability) => ability.id === 'skeletonFireball');
+  const result = game.abilities.cast(enemy, fireball, {
+    target: game.player,
+    entities,
+    grid: null,
+    rng: new Rng(9),
+    hooks: {
+      damage: (target, amount) => ({ applied: target.takeDamage(amount), killed: !target.alive }),
+      beam() {},
+      explosion() {},
+    },
+  });
+  assert.equal(result.ok, true);
+  for (let i = 0; i < 240 && game.projectiles.projectiles.length > 0; i++) {
+    game.projectiles.update(1 / 60, { grid: null, entities: game.combatEntities() });
+  }
+
+  assert.ok(game.player.health < startingHealth, 'the enemy projectile damages the player');
+});
+
 test('slows survive unrelated enemy buffs and restore speed exactly on expiry', () => {
   const systems = makeSystems();
   const mage = new Enemy('skeletonMage', 5, 5, { floor: 3 });
