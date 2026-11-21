@@ -117,9 +117,15 @@ export class SpriteRenderer {
     const relativeX = x - this.camera.x;
     const relativeY = y - this.camera.y;
     const baseX =
-      this.camera.x + matrix.m00 * relativeX + matrix.m01 * relativeY;
+      this.camera.x +
+      matrix.m00 * relativeX +
+      matrix.m01 * relativeY +
+      (options.screenX ?? 0);
     const baseY =
-      this.camera.y + matrix.m10 * relativeX + matrix.m11 * relativeY;
+      this.camera.y +
+      matrix.m10 * relativeX +
+      matrix.m11 * relativeY +
+      (options.screenY ?? 0);
     const ground = options.ground ?? GROUND_SPRITES.has(name);
 
     let topLeftX;

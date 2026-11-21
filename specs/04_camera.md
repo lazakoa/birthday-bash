@@ -63,6 +63,7 @@ At yaw 45 degrees, pitch 30 degrees, and `scale = 32 * sqrt(2)` CSS pixels per t
 - Every world-space visual must use the camera transform: floor and alternate floor tiles, walls, stairs, shrines, the exit, pickups, enemies, the player, the Lich, projectiles, area effects, beams, sparks, click markers, shadows, health bars, and ground highlights.
 - Ground geometry must actually rotate and foreshorten with the camera. Moving tile centres while leaving the original 64 by 32 diamond sprites unrotated is not sufficient, because that would leave gaps, overlaps, or tiles that do not follow the ground plane at intermediate yaw angles. Floor tile edges must remain contiguous at every yaw and pitch.
 - Character, enemy, pickup, projectile, and effect sprites remain screen-aligned and upright. Only their ground anchor and draw order follow the camera; their art must not be rotated or sheared by yaw.
+- Screen-space details attached to an upright sprite, such as enemy health bars and stun sparks, use screen-space offsets. Their anchor follows the ground transform, but their vertical offset stays vertical on screen at every yaw and pitch.
 - Walls are rendered as camera-aligned blocks: their ground footprint follows the yaw and pitch transform while their vertical faces stay vertical on screen. Wall tops must tile continuously with the floor at every camera angle, without the fixed isometric top diamond sliding against the rotated ground plane.
 - Ground-plane effects such as highlights, shadows, click markers, and area indicators must follow the same ground projection so they stay attached to their tiles.
 - Occluders must be depth-sorted using the camera-space depth from the current yaw and pitch, farthest first. The order must update continuously while the camera turns. Stable tie-breaking must avoid visible flicker between objects at equal depth.
@@ -132,6 +133,7 @@ Provisional defaults:
 - Right-click movement and left-click targeting remain accurate at minimum pitch, maximum pitch, and all yaw angles, including near 0 and 360 degrees.
 - Floor tiles and wall footprints form a continuous ground plane with no gaps, overlaps, or jitter at intermediate yaw angles. Wall tops stay aligned with the floor while wall faces remain vertical.
 - Draw order updates correctly while turning, with no popping or flicker between walls, enemies, and the player.
+- Enemy health bars and other head-anchored details remain centred above their sprites at every yaw and pitch.
 - No floor tiles disappear at the viewport edges at any supported camera angle or window size.
 - The mini map rotates with camera yaw and the large map remains north-up. Neither map is affected by camera pitch.
 - Restarting or returning to class selection restores the initial view. Floor transitions preserve the current view.

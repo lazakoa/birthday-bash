@@ -1614,21 +1614,27 @@ export class Game {
           const spin = (performance.now() / 180) % (Math.PI * 2);
           for (let i = 0; i < 3; i++) {
             const angle = spin + (i / 3) * Math.PI * 2;
-            renderer.draw('spark', center.x + Math.cos(angle) * 10, center.y - 48 + Math.sin(angle) * 4, {
+            renderer.draw('spark', center.x, center.y, {
+              screenX: Math.cos(angle) * 10,
+              screenY: -48 + Math.sin(angle) * 4,
               scale: 3,
               tint: [1, 0.88, 0.4, 0.95],
             });
           }
         }
         const width = enemy.isLich ? 52 : 28;
-        const barY = center.y - (enemy.isLich ? 62 : 42);
-        renderer.draw('bar', center.x - width / 2, barY, {
+        const barLift = enemy.isLich ? 62 : 42;
+        renderer.draw('bar', center.x, center.y, {
+          screenX: -width / 2,
+          screenY: -barLift,
           scaleX: width / 2,
           scaleY: 2,
           tint: [0, 0, 0, 0.7],
         });
         if (enemy.health > 0) {
-          renderer.draw('bar', center.x - width / 2, barY, {
+          renderer.draw('bar', center.x, center.y, {
+            screenX: -width / 2,
+            screenY: -barLift,
             scaleX: (width / 2) * enemy.healthRatio,
             scaleY: 2,
             tint: [0.88, 0.3, 0.3, 0.95],
